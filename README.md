@@ -1,6 +1,7 @@
-# Thuis-app 🏠
+# DeSchuur9040-app
 
 Eén site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
+Een site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
 
 ## Structuur
 - `docs/index.html`: startscherm. `docs/opruim/`, `docs/boodschappen/`, `docs/toilet/`: de modules. `docs/gedeeld/`: gedeelde stijl en inlogcode.
@@ -24,7 +25,7 @@ Eén site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **B
    ```sql
    -- ouder
    insert into ouders (user_id, naam, emoji)
-     select id, 'Papa', '🧔' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
+     select id, 'Papa', 'ðŸ§”' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
    -- kind (login_email = het adres van het account)
    update kinderen set login_email = 'emma@gezin.example.com' where volgorde = 1;
    update kinderen k set user_id = u.id from auth.users u where u.email = k.login_email;
@@ -58,6 +59,6 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 
 ## Beheer
 - **Nieuwe ouder**: account maken (stap 4) en de `insert into ouders`-regel uit stap 5 uitvoeren. Een ouder verwijderen: rij uit `ouders` wissen en eventueel de gebruiker.
-- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = '🏑' where volgorde = 1;`.
+- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = 'ðŸ‘' where volgorde = 1;`.
 - **Pincode vergeten**: Authentication > Users > de gebruiker kiezen en een nieuw wachtwoord instellen, of een nieuw account aanmaken.
 - **Inlognaam wijzigen**: het e-mailadres van de gebruiker aanpassen; zie de voorbeeld-SQL onderaan `supabase/privacy.sql`.
