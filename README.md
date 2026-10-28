@@ -1,6 +1,6 @@
-# Thuis-app 🏠
+# DeSchuur9040-app
 
-E�n site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
+Een site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
 
 ## Structuur
 - `docs/index.html`: startscherm. `docs/opruim/`, `docs/boodschappen/`, `docs/toilet/`: de modules. `docs/gedeeld/`: gedeelde stijl en inlogcode.
@@ -12,7 +12,7 @@ E�n site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Bo
 
 ### 1. Supabase
 1. Maak op supabase.com een gratis project.
-2. Voer in de **SQL Editor** in deze volgorde uit, elk bestand één keer:
+2. Voer in de **SQL Editor** in deze volgorde uit, elk bestand Ã©Ã©n keer:
    `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql`
    (`schema.sql` bevat voorbeeldnamen; pas de echte namen en emoji's later aan in **Table Editor > kinderen**.)
 3. **Authentication > Sign In / Providers > Email**: zet "Allow new users to sign up" **uit**.
@@ -24,7 +24,7 @@ E�n site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Bo
    ```sql
    -- ouder
    insert into ouders (user_id, naam, emoji)
-     select id, 'Papa', '🧔' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
+     select id, 'Papa', 'ðŸ§”' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
    -- kind (login_email = het adres van het account)
    update kinderen set login_email = 'emma@gezin.example.com' where volgorde = 1;
    update kinderen k set user_id = u.id from auth.users u where u.email = k.login_email;
@@ -41,7 +41,7 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 
 ## Spelregels (aanpasbaar)
 - **Opruimen**: elke avond beoordeelt een ouder per kind (Opgeruimd/Rommel). 7 opgeruimde dagen = 1 joker (max. 2). Bij rommel is de streak weg en volgende dag minder tijd, tenzij een joker wordt ingezet. Per kind instelbaar in de tabel `kinderen`: `beperking` (bv. Social media of Schermtijd), `basis_minuten`, `straf_minuten`. Overige instellingen in `docs/config.js`. Een kind kan na een rommeldag zelf een joker aanvragen; de ouder keurt goed of af. Dagen zonder beoordeling tellen niet mee. Een ouder kan bovenaan een andere dag kiezen.
-- **Boodschappen**: tab *Lijst* (typen, aanvullen uit de catalogus, nieuw product meteen bewaard), tab *Winkelen* (afvinken in de volgorde van de gekozen winkel), tab *Beheer* voor ouders (winkels, volgorde van categorieën per winkel, producten, categorieën). Wijzigingen verschijnen live op andere toestellen.
+- **Boodschappen**: tab *Lijst* (typen, aanvullen uit de catalogus, nieuw product meteen bewaard), tab *Winkelen* (afvinken in de volgorde van de gekozen winkel), tab *Beheer* voor ouders (winkels, volgorde van categorieÃ«n per winkel, producten, categorieÃ«n). Wijzigingen verschijnen live op andere toestellen.
 - **Toilet-teller**: per dag geweest ja/nee, hoe het was (5-delige schaal, aanpasbaar bovenaan `docs/toilet/index.html`) en buikpijn ja/nee. Alleen de ouder en het kind zelf zien en vullen dit in.
 
 ## Beveiliging: wat is openbaar en wat niet
@@ -55,6 +55,6 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 
 ## Beheer
 - **Nieuwe ouder**: account maken (stap 4) en de `insert into ouders`-regel uit stap 5 uitvoeren. Een ouder verwijderen: rij uit `ouders` wissen en eventueel de gebruiker.
-- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = '🏑' where volgorde = 1;`.
+- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = 'ðŸ‘' where volgorde = 1;`.
 - **Pincode vergeten**: Authentication > Users > de gebruiker kiezen en een nieuw wachtwoord instellen, of een nieuw account aanmaken.
 - **Inlognaam wijzigen**: het e-mailadres van de gebruiker aanpassen; zie de voorbeeld-SQL onderaan `supabase/privacy.sql`.
