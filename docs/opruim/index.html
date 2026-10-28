@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Opruimstreak</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="icon" href="../icon.svg">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="theme-color" content="#ff6b35">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff4e0;--ink:#2b2250;--soft:#6d6590;--card:#fff;--flame:#ff6b35;--joker:#7b5cff;--ok:#1fb58f;--bad:#e8456b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Fredoka,"Trebuchet MS",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;max-width:760px;margin:0 auto}
+h1{font-size:1.5rem;margin:0;font-weight:700}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:10px 16px;font-weight:500;color:var(--ink);background:#fff;box-shadow:0 2px 0 rgba(43,34,80,.15)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--joker);outline-offset:2px}
+main{max-width:760px;margin:0 auto;padding:0 16px 40px;display:grid;gap:20px}
+.kind{background:var(--card);border-radius:28px;padding:20px;border:3px solid var(--c)}
+.top{display:flex;align-items:center;gap:14px}
+.avatar{font-size:2.6rem}
+.naam{font-size:1.6rem;font-weight:700;flex:1}
+.vlam{text-align:center;line-height:1}
+.vlam .f{font-size:calc(3rem + var(--s)*.35rem);display:inline-block;transform-origin:50% 90%;animation:flik 1.6s ease-in-out infinite}
+.vlam.uit .f{filter:grayscale(1);opacity:.35;animation:none}
+.vlam b{display:block;font-size:2.4rem;margin-top:-6px}
+.vlam small{color:var(--soft)}
+@keyframes flik{50%{transform:scale(1.08) rotate(-3deg)}}
+.rij{display:flex;gap:8px;margin:16px 0 6px}
+.dag{flex:1;text-align:center;font-size:1.4rem;background:var(--bg);border-radius:12px;padding:6px 0}
+.dag small{display:block;font-size:.7rem;color:var(--soft)}
+.dag.nu{outline:3px solid var(--c)}
+.balk{height:12px;background:var(--bg);border-radius:8px;overflow:hidden}
+.balk i{display:block;height:100%;background:var(--c);border-radius:8px;transition:width .5s}
+.sub{color:var(--soft);margin:6px 0 0;font-size:.95rem}
+.jokers{display:flex;gap:8px;align-items:center;margin-top:14px}
+.jk{width:44px;height:60px;border-radius:10px;display:grid;place-items:center;font-size:1.5rem;background:var(--joker);color:#fff;transform:rotate(-4deg)}
+.jk:nth-child(2n){transform:rotate(4deg)}
+.jk.leeg{background:transparent;border:2px dashed #c9c2e6;color:#c9c2e6}
+.tijd{margin-top:14px;padding:10px 14px;border-radius:16px;background:var(--bg)}
+.tijd.min{background:#ffe3ea}
+.msg{margin:14px 0 0;font-weight:500}
+.acties{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+.acties button{flex:1;min-width:140px;padding:14px}
+.ja{background:var(--ok);color:#fff}.nee{background:var(--bad);color:#fff}
+dialog{border:0;border-radius:24px;padding:24px;max-width:340px;font-family:inherit;color:var(--ink)}
+dialog::backdrop{background:rgba(43,34,80,.5)}
+input{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid #d8d2ee;margin:12px 0}
+.datum{display:flex;align-items:center;gap:10px;font-weight:500}.datum input{width:auto;margin:0}
+.tabs{display:flex;gap:8px;margin-bottom:6px}.tabs .act{background:var(--joker);color:#fff}
+.rijknop{display:flex;gap:8px;justify-content:flex-end}
+select{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid #d8d2ee;margin-top:12px;background:#fff}
+.aanvraag{background:#efeaff;border-radius:16px;padding:12px 14px;margin:14px 0 0;font-weight:500}
+.jk-knop{background:var(--joker);color:#fff}
+.fout{background:#ffe3ea;padding:14px;border-radius:16px}
+.regen{position:fixed;top:-2rem;font-size:2rem;pointer-events:none;animation:val 1.8s ease-in forwards;z-index:9}
+@keyframes val{to{transform:translateY(110vh) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.vlam .f{animation:none}.regen{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1><a href="../" style="text-decoration:none">🏠</a> Opruimstreak</h1>
+  <button id="ouderknop">Inloggen</button>
+</header>
+<main id="app"><p style="padding:0 8px">Laden…</p></main>
+
+<dialog id="login"><form id="loginform"><strong>Wie ben jij?</strong>
+  <input id="wie" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="Jouw naam" required>
+  <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="Pincode" autocomplete="current-password" required>
+  <div class="rijknop"><button type="button" class="annuleer">Annuleer</button><button class="ja">Inloggen</button></div></form></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script>
+const C = window.CONFIG;
+const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
+const KLEUREN = ['#ff6b35', '#7b5cff', '#1fb58f', '#e8456b'];
+const GOED = ['Wat een stralende kamer! ✨', 'De vloer heeft weer een vloer! 🏆', 'Kamer-kampioen van de dag! 🥇', 'Je speelgoed zingt van geluk 🎶'];
+const SLECHT = ['Je kamer lijkt wel een tornado-museum 🌪️', 'Het speelgoed vraagt om hulp 🆘', 'Een ontdekkingsreis naar de vloer is nodig 🧭', 'Morgen nieuwe kans! 💪'];
+const DAGNAMEN = ['zo', 'ma', 'di', 'woe', 'don', 'vrij', 'zat'];
+
+let kinderen = [], dagen = [], aanvragen = [], ouderLijst = [], isOuder = false, sessie = null, mijnKind = null;
+
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dagMet = n => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const kies = (lijst, seed) => lijst[seed % lijst.length];
+
+// Streak en jokers worden altijd opnieuw berekend uit de opgeslagen dagen.
+function bereken(rijen) {
+  let streak = 0, jokers = 0, run = 0;
+  for (const r of rijen) {
+    if (r.status === 'opgeruimd') {
+      streak++; run++;
+      if (run >= C.DAGEN_PER_JOKER) { run = 0; jokers = Math.min(C.MAX_JOKERS, jokers + 1); }
+    } else if (r.status === 'joker') {
+      jokers = Math.max(0, jokers - 1);
+    } else { streak = 0; run = 0; }
+  }
+  return { streak, jokers, run };
+}
+
+function schermtijd(rijen, k) {
+  const basis = k.basis_minuten ?? C.BASIS_MINUTEN, strafmin = k.straf_minuten ?? C.STRAF_MINUTEN;
+  const g = rijen.find(r => r.datum === dagMet(-1));
+  const straf = g && (g.status === 'rommel' || (g.status === 'joker' && !C.JOKER_BESCHERMT_SCHERMTIJD));
+  return { basis, min: straf ? Math.max(0, basis - strafmin) : basis };
+}
+let gekozen = null;
+const gekozenDag = () => gekozen || dagMet(0);
+
+function render() {
+  const app = document.getElementById('app');
+  const kiezer = isOuder ? `<label class="datum">Dag beoordelen: <input type="date" id="dagkeuze" max="${dagMet(0)}" value="${gekozenDag()}"></label>` : '';
+  app.innerHTML = kiezer + kinderen.map((k, i) => {
+    const rijen = dagen.filter(d => d.kind_id === k.id).sort((a, b) => a.datum < b.datum ? -1 : 1);
+    const { streak, jokers, run } = bereken(rijen);
+    const { basis, min } = schermtijd(rijen, k);
+    const vandaag = rijen.find(r => r.datum === dagMet(0));
+    const dots = [-6, -5, -4, -3, -2, -1, 0].map(n => {
+      const ds = dagMet(n), r = rijen.find(x => x.datum === ds);
+      const e = !r ? '·' : r.status === 'opgeruimd' ? '✅' : r.status === 'joker' ? '🃏' : '🙈';
+      const naam = DAGNAMEN[new Date(ds + 'T12:00').getDay()];
+      return `<div class="dag ${n === 0 ? 'nu' : ''}">${e}<small>${naam}</small></div>`;
+    }).join('');
+    const kaarten = Array.from({ length: C.MAX_JOKERS }, (_, j) => `<div class="jk ${j < jokers ? '' : 'leeg'}">${j < jokers ? '🃏' : ''}</div>`).join('');
+    const resterend = C.DAGEN_PER_JOKER - run;
+    const msg = !vandaag ? '' : vandaag.status === 'opgeruimd' ? kies(GOED, i + streak)
+      : vandaag.status === 'joker' ? 'Joker ingezet. De streak is gered! 🃏' : kies(SLECHT, i + rijen.length);
+    const rom = rijen.filter(r => r.status === 'rommel' && r.datum >= dagMet(-1)).pop();
+    const aanv = rom && aanvragen.find(a => a.kind_id === k.id && a.datum === rom.datum);
+    let jokerblok = '';
+    if (isOuder) {
+      jokerblok = aanvragen.filter(a => a.kind_id === k.id && a.status === 'open').map(a =>
+        `<div class="aanvraag">🃏 ${esc(k.naam)} vraagt een joker voor ${a.datum}<div class="acties"><button class="ja" data-keur="${a.id}" data-ok="1">Goedkeuren</button><button class="nee" data-keur="${a.id}" data-ok="0">Afwijzen</button></div></div>`).join('');
+    } else if (mijnKind && mijnKind.id === k.id && rom) {
+      const kan = bereken(rijen.filter(r => r.datum < rom.datum)).jokers > 0;
+      jokerblok = aanv ? (aanv.status === 'open' ? '<p class="aanvraag">Joker aangevraagd, wacht op goedkeuring ⏳</p>' : aanv.status === 'afgewezen' ? '<p class="aanvraag">Deze keer geen joker 🙈</p>' : '')
+        : kan ? `<div class="acties"><button class="jk-knop" data-vraag="${rom.datum}">Joker gebruiken? 🃏</button></div>` : '';
+    }
+    const acties = isOuder ? `<div class="acties">
+      <button class="ja" data-k="${k.id}" data-s="opgeruimd">Opgeruimd ✅</button>
+      <button class="nee" data-k="${k.id}" data-s="rommel">Rommel 🙈</button></div>` : '';
+    return `<section class="kind" style="--c:${KLEUREN[i % KLEUREN.length]}">
+      <div class="top"><div class="avatar">${esc(k.emoji)}</div><div class="naam">${esc(k.naam)}</div>
+        <div class="vlam ${streak ? '' : 'uit'}" style="--s:${Math.min(streak, 14)}"><span class="f">🔥</span><b>${streak}</b><small>${streak === 1 ? 'dag' : 'dagen'}</small></div></div>
+      <div class="rij">${dots}</div>
+      <div class="balk"><i style="width:${run / C.DAGEN_PER_JOKER * 100}%"></i></div>
+      <p class="sub">Nog ${resterend} ${resterend === 1 ? 'dag' : 'dagen'} voor een nieuwe joker</p>
+      <div class="jokers">${kaarten}<span class="sub" style="margin:0 0 0 6px">${jokers} van ${C.MAX_JOKERS} jokers</span></div>
+      <div class="tijd ${min < basis ? 'min' : ''}">📱 ${esc(k.beperking || 'Schermtijd')} vandaag: <b>${min} min</b>${min < basis ? ' (rommel gisteren)' : ''}</div>
+      ${msg ? `<p class="msg">${msg}</p>` : ''}${jokerblok}${acties}</section>`;
+  }).join('') || '<p class="fout">Nog geen kinderen in de database. Voer supabase/schema.sql uit.</p>';
+  document.getElementById('ouderknop').textContent = sessie ? 'Uitloggen' : 'Inloggen';
+}
+
+function regen(emoji, aantal = 28) {
+  for (let i = 0; i < aantal; i++) {
+    const e = document.createElement('span');
+    e.className = 'regen'; e.textContent = emoji[i % emoji.length];
+    e.style.left = Math.random() * 100 + 'vw';
+    e.style.animationDelay = Math.random() * .6 + 's';
+    document.body.appendChild(e);
+    setTimeout(() => e.remove(), 2800);
+  }
+}
+
+async function zet(kindId, status) {
+  const kind = kinderen.find(k => k.id === kindId);
+  const datum = gekozenDag();
+  const rijen = dagen.filter(d => d.kind_id === kindId && d.datum < datum).sort((a, b) => a.datum < b.datum ? -1 : 1);
+  const voor = bereken(rijen);
+  if (status === 'rommel' && voor.jokers > 0 &&
+      confirm(`${kind.naam} heeft ${voor.jokers} joker(s). Joker inzetten voor ${datum} zodat de streak blijft?`)) status = 'joker';
+  const { error } = await sb.from('dagen').upsert({ kind_id: kindId, datum, status }, { onConflict: 'kind_id,datum' });
+  if (error) return alert('Opslaan mislukt: ' + error.message);
+  await laad();
+  const na = bereken(dagen.filter(d => d.kind_id === kindId).sort((a, b) => a.datum < b.datum ? -1 : 1));
+  if (status === 'opgeruimd') regen(na.run === 0 && na.streak > 0 ? ['🃏', '🎉', '🔥'] : ['✨', '🧹', '⭐']);
+  if (status === 'joker') regen(['🃏']);
+}
+
+async function laad() {
+  if (!sessie) {
+    kinderen = []; dagen = []; aanvragen = []; isOuder = false; mijnKind = null;
+    document.getElementById('ouderknop').textContent = 'Inloggen';
+    document.getElementById('app').innerHTML = '<p class="fout">Log eerst in (knop rechtsboven) om de streaks te zien.</p>';
+    return;
+  }
+  const [k, d, a, o] = await Promise.all([
+    sb.from('kinderen').select('*').order('volgorde'),
+    sb.from('dagen').select('*').order('datum'),
+    sb.from('jokeraanvragen').select('*'),
+    sb.from('ouders').select('*')
+  ]);
+  if (k.error || d.error) {
+    document.getElementById('app').innerHTML = `<p class="fout">Kan de gegevens niet laden: ${esc((k.error || d.error).message)}. Controleer config.js en of het Supabase-project niet gepauzeerd is.</p>`;
+    return;
+  }
+  kinderen = k.data; dagen = d.data; aanvragen = a.error ? [] : a.data; ouderLijst = o.error ? [] : o.data;
+  await bepaalRol(); render();
+}
+
+document.getElementById('app').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-k]');
+  if (b) return zet(b.dataset.k, b.dataset.s);
+  const v = e.target.closest('button[data-vraag]');
+  if (v) {
+    const { error } = await sb.from('jokeraanvragen').insert({ kind_id: mijnKind.id, datum: v.dataset.vraag });
+    if (error) alert('Aanvragen mislukt: ' + error.message);
+    return laad();
+  }
+  const o = e.target.closest('button[data-keur]');
+  if (o) return keur(o.dataset.keur, o.dataset.ok === '1');
+});
+
+async function keur(id, ok) {
+  const a = aanvragen.find(x => x.id === id);
+  if (!a) return;
+  if (ok) {
+    const rijen = dagen.filter(d => d.kind_id === a.kind_id && d.datum < a.datum).sort((x, y) => x.datum < y.datum ? -1 : 1);
+    if (bereken(rijen).jokers < 1) return alert('Er is geen joker beschikbaar voor deze dag.');
+    const r = await sb.from('dagen').upsert({ kind_id: a.kind_id, datum: a.datum, status: 'joker' }, { onConflict: 'kind_id,datum' });
+    if (r.error) return alert('Mislukt: ' + r.error.message);
+  }
+  const r2 = await sb.from('jokeraanvragen').update({ status: ok ? 'goedgekeurd' : 'afgewezen' }).eq('id', id);
+  if (r2.error) alert('Mislukt: ' + r2.error.message);
+  await laad();
+  if (ok) regen(['🃏']);
+}
+
+async function bepaalRol() {
+  isOuder = false; mijnKind = null;
+  if (!sessie) return;
+  const { data } = await sb.from('ouders').select('user_id').eq('user_id', sessie.user.id).maybeSingle();
+  if (data) isOuder = true; else mijnKind = kinderen.find(k => k.user_id === sessie.user.id) || null;
+}
+
+document.getElementById('app').addEventListener('change', e => {
+  if (e.target.id === 'dagkeuze') { gekozen = e.target.value && e.target.value <= dagMet(0) ? e.target.value : null; render(); }
+});
+const dlg = document.getElementById('login');
+const loginEmail = naam => naam.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '') + '@' + (C.LOGIN_DOMEIN || 'gezin.example.com');
+document.querySelectorAll('.annuleer').forEach(b => b.addEventListener('click', () => dlg.close()));
+document.getElementById('ouderknop').addEventListener('click', () => { if (sessie) sb.auth.signOut(); else dlg.showModal(); });
+document.getElementById('loginform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const { error } = await sb.auth.signInWithPassword({ email: loginEmail(document.getElementById('wie').value), password: document.getElementById('pin').value });
+  if (error) return alert('Naam of pincode klopt niet. Probeer opnieuw.');
+  document.getElementById('pin').value = ''; dlg.close();
+});
+
+sb.auth.onAuthStateChange((_e, session) => { sessie = session; setTimeout(laad, 0); });
+laad();
+</script>
+</body>
+</html>

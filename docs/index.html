@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Thuis</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#ff6b35">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="gedeeld/stijl.css">
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="gedeeld/basis.js"></script>
+<script>
+Basis.start('Thuis', () => {
+  document.getElementById('app').innerHTML = Basis.sessie
+    ? `<div class="tegels">
+        <a class="tegel" style="--c:#ff6b35" href="opruim/"><b>🧹</b>Opruimstreak</a>
+        <a class="tegel" style="--c:#1fb58f" href="boodschappen/"><b>🛒</b>Boodschappen</a>
+        <a class="tegel" style="--c:#7b5cff" href="toilet/"><b>🚽</b>Toilet-teller</a></div>`
+    : '<p class="fout">Log in met je naam en pincode (knop rechtsboven).</p>';
+}, { thuis: true });
+</script>
+</body>
+</html>

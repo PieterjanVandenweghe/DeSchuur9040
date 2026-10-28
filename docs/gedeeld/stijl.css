@@ -1,0 +1,28 @@
+:root{--bg:#fff4e0;--ink:#2b2250;--soft:#6d6590;--card:#fff;--flame:#ff6b35;--joker:#7b5cff;--ok:#1fb58f;--bad:#e8456b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Fredoka,"Trebuchet MS",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header.top{display:flex;align-items:center;gap:12px;padding:14px 16px;max-width:760px;margin:0 auto}
+header.top h1{font-size:1.4rem;margin:0;flex:1}
+a.terug{text-decoration:none;font-size:1.5rem}
+button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:10px 16px;font-weight:500;color:var(--ink);background:#fff;box-shadow:0 2px 0 rgba(43,34,80,.15)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--joker);outline-offset:2px}
+main{max-width:760px;margin:0 auto;padding:0 16px 40px}
+.kaart{background:var(--card);border-radius:24px;padding:18px;margin-bottom:16px}
+.sub{color:var(--soft);margin:6px 0}
+.ja{background:var(--ok);color:#fff}.nee{background:var(--bad);color:#fff}
+input[type=text],input[type=email],input[type=password],input[type=search],input[type=date],select{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid #d8d2ee;background:#fff;color:var(--ink)}
+.tabs{display:flex;gap:8px;margin:0 0 14px}.tabs button{flex:1}.tabs .act{background:var(--joker);color:#fff}
+.rij{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #eee}.rij span{flex:1}
+.rij.af span{text-decoration:line-through;color:var(--soft)}
+.rij input[type=checkbox]{width:24px;height:24px}
+h3{margin:18px 0 4px;font-size:1.05rem;color:var(--joker)}
+.rijknop{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+dialog{border:0;border-radius:24px;padding:24px;max-width:340px;font-family:inherit;color:var(--ink)}
+dialog::backdrop{background:rgba(43,34,80,.5)}
+dialog input,dialog select{margin-top:12px}
+.fout{background:#ffe3ec;padding:14px;border-radius:16px}
+.knoppen{display:flex;gap:8px;flex-wrap:wrap}.knoppen button{flex:1;min-width:90px}
+.knoppen .kies{background:var(--joker);color:#fff}
+.tegels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+a.tegel{display:block;text-decoration:none;color:var(--ink);background:var(--card);border-radius:28px;padding:28px 20px;text-align:center;border:3px solid var(--c)}
+a.tegel b{display:block;font-size:3rem;margin-bottom:6px}

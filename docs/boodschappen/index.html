@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Boodschappen</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="icon" href="../icon.svg">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="theme-color" content="#ff6b35">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../gedeeld/stijl.css">
+<style>
+.sug{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.sug button{background:#efeaff}
+.nieuw{background:#fff7d6;border-radius:16px;padding:12px;margin:10px 0}
+.nieuw select{margin:8px 0}
+.orde .rij button{padding:6px 12px}
+details{border-bottom:1px solid #eee;padding:8px 0}summary{cursor:pointer;font-weight:500}
+.zoekrij{position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:2}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../gedeeld/basis.js"></script>
+<script>
+const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
+let cats = [], prods = [], lijst = [], winkels = [], volg = [], tab = 'lijst', beheerWinkel = null, kanaal = null, nieuweCat = null;
+let winkel = ''; try { winkel = localStorage.getItem('winkel') || ''; } catch (e) {}
+
+B.start('🛒 Boodschappen', () => { laad(); });
+
+async function laad() {
+  if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }
+  const [c, p, l, w, v] = await Promise.all(['categorieen', 'producten', 'lijst', 'winkels', 'winkel_volgorde'].map(t => sb.from(t).select('*')));
+  const fout = [c, p, l, w, v].find(r => r.error);
+  if (fout) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(fout.error.message)}. Is boodschappen.sql uitgevoerd?</p>`; return; }
+  cats = c.data.sort((a, b) => a.standaard_volgorde - b.standaard_volgorde); prods = p.data; lijst = l.data; winkels = w.data; volg = v.data;
+  if (!nieuweCat) nieuweCat = (cats.find(x => x.naam === 'Andere') || cats[0] || {}).id;
+  if (!kanaal) kanaal = sb.channel('lijst').on('postgres_changes', { event: '*', schema: 'public', table: 'lijst' }, async () => {
+    const r = await sb.from('lijst').select('*'); if (!r.error) { lijst = r.data; vul(); }
+  }).subscribe();
+  render();
+}
+
+function render() {
+  const tabs = [['lijst', '📝 Lijst'], ['winkelen', '🛍️ Winkelen']].concat(B.isOuder ? [['beheer', '⚙️ Beheer']] : []);
+  if (!tabs.some(t => t[0] === tab)) tab = 'lijst';
+  let paneel = '';
+  if (tab === 'lijst') paneel = `<div class="zoekrij"><input id="zoek" type="search" placeholder="Wat moet er op het lijstje?" autocomplete="off"></div><div id="sugg"></div><div id="vak"></div>`;
+  else if (tab === 'winkelen') paneel = `<select id="winkelkeuze" aria-label="Winkel"><option value="">Standaardvolgorde</option>${winkels.map(w => `<option value="${w.id}" ${w.id === winkel ? 'selected' : ''}>${esc(w.naam)}</option>`).join('')}</select><div id="vak"></div>`;
+  else paneel = '<div id="vak"></div>';
+  app.innerHTML = `<div class="tabs">${tabs.map(t => `<button data-tab="${t[0]}" class="${t[0] === tab ? 'act' : ''}">${t[1]}</button>`).join('')}</div>${paneel}`;
+  vul();
+}
+
+const catById = () => Object.fromEntries(cats.map(c => [c.id, c]));
+const prodById = () => Object.fromEntries(prods.map(p => [p.id, p]));
+function volgordeVoor(w) {
+  const pos = {}; volg.filter(v => v.winkel_id === w).forEach(v => pos[v.categorie_id] = v.positie);
+  return [...cats].sort((a, b) => (pos[a.id] ?? 1000 + a.standaard_volgorde) - (pos[b.id] ?? 1000 + b.standaard_volgorde));
+}
+function groepen(catLijst, rij) {
+  const pb = prodById(), items = lijst.map(l => ({ l, p: pb[l.product_id] })).filter(x => x.p);
+  return catLijst.map(c => {
+    const it = items.filter(x => x.p.categorie_id === c.id);
+    return it.length ? `<h3>${esc(c.naam)}</h3>` + it.map(rij).join('') : '';
+  }).join('') || '<p class="sub">Het lijstje is leeg 🎉</p>';
+}
+
+function vul() {
+  const vak = document.getElementById('vak'); if (!vak) return;
+  if (tab === 'lijst') {
+    vak.innerHTML = groepen(cats, x => `<div class="rij ${x.l.afgevinkt ? 'af' : ''}"><span>${esc(x.p.naam)}</span><button data-del="${x.l.id}" aria-label="Verwijder ${esc(x.p.naam)}">✕</button></div>`);
+    vulSugg();
+  } else if (tab === 'winkelen') {
+    vak.innerHTML = groepen(volgordeVoor(winkel), x => `<label class="rij ${x.l.afgevinkt ? 'af' : ''}"><input type="checkbox" data-vink="${x.l.id}" ${x.l.afgevinkt ? 'checked' : ''}><span>${esc(x.p.naam)}</span></label>`)
+      + (lijst.some(l => l.afgevinkt) ? '<div class="rijknop"><button data-wis="1">Afgevinkte wissen</button></div>' : '');
+  } else vulBeheer(vak);
+}
+
+function zoekwaarde() { const z = document.getElementById('zoek'); return z ? z.value.trim() : ''; }
+function vulSugg() {
+  const s = document.getElementById('sugg'); if (!s) return;
+  const q = zoekwaarde(), ql = q.toLowerCase();
+  if (!q) { s.innerHTML = ''; return; }
+  const op = new Set(lijst.map(l => l.product_id)), cb = catById();
+  const m = prods.filter(p => p.naam.toLowerCase().includes(ql)).sort((a, b) => a.naam.length - b.naam.length).slice(0, 8);
+  const exact = prods.some(p => p.naam.toLowerCase() === ql);
+  s.innerHTML = `<div class="sug">${m.map(p => `<button data-add="${p.id}">${op.has(p.id) ? '✓ ' : ''}${esc(p.naam)} <small>· ${esc((cb[p.categorie_id] || {}).naam || '')}</small></button>`).join('')}</div>`
+    + (exact ? '' : `<div class="nieuw">➕ “${esc(q)}” is nieuw. Opslaan in:<select id="nwcat">${cats.map(c => `<option value="${c.id}" ${c.id === nieuweCat ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select><button class="ja" data-nieuw="1">Toevoegen</button></div>`);
+}
+
+async function zetOpLijst(productId) {
+  const { error } = await sb.from('lijst').upsert({ product_id: productId, afgevinkt: false }, { onConflict: 'product_id' });
+  if (error) return alert('Mislukt: ' + error.message);
+  const z = document.getElementById('zoek'); if (z) { z.value = ''; z.focus(); }
+  const r = await sb.from('lijst').select('*'); if (!r.error) lijst = r.data; vul();
+}
+async function nieuwProduct() {
+  const naam = zoekwaarde(); if (!naam) return;
+  const { data, error } = await sb.from('producten').insert({ naam, categorie_id: nieuweCat }).select().single();
+  if (error) return alert('Opslaan mislukt: ' + error.message);
+  prods.push(data); await zetOpLijst(data.id);
+}
+
+function vulBeheer(vak) {
+  const w = beheerWinkel && winkels.find(x => x.id === beheerWinkel);
+  if (w) {
+    const o = volgordeVoor(w.id);
+    vak.innerHTML = `<div class="kaart orde"><strong>Volgorde bij ${esc(w.naam)}</strong><p class="sub">Zet de categorieën in de volgorde van de winkelroute.</p>
+      ${o.map((c, i) => `<div class="rij"><span>${esc(c.naam)}</span><button data-omhoog="${c.id}" ${i === 0 ? 'disabled' : ''}>▲</button><button data-omlaag="${c.id}" ${i === o.length - 1 ? 'disabled' : ''}>▼</button></div>`).join('')}
+      <div class="rijknop"><button data-klaar="1" class="ja">Klaar</button></div></div>`;
+    return;
+  }
+  const per = Object.fromEntries(cats.map(c => [c.id, prods.filter(p => p.categorie_id === c.id).sort((a, b) => a.naam.localeCompare(b.naam))]));
+  vak.innerHTML = `<div class="kaart"><strong>Winkels</strong>
+    ${winkels.map(x => `<div class="rij"><span>${esc(x.naam)}</span><button data-orde="${x.id}">Volgorde</button><button data-delwinkel="${x.id}" aria-label="Verwijder ${esc(x.naam)}">✕</button></div>`).join('') || '<p class="sub">Nog geen winkels.</p>'}
+    <div style="display:flex;gap:8px;margin-top:10px"><input id="nwwinkel" type="text" placeholder="Nieuwe winkel (bv. Colruyt)"><button data-addwinkel="1" class="ja">+</button></div></div>
+    <div class="kaart"><strong>Categorieën en producten</strong>
+    ${cats.map(c => `<details><summary>${esc(c.naam)} <small>(${per[c.id].length})</small></summary>
+      ${per[c.id].map(p => `<div class="rij"><span>${esc(p.naam)}</span><button data-delprod="${p.id}" aria-label="Verwijder ${esc(p.naam)}">✕</button></div>`).join('')}
+      <div style="display:flex;gap:8px;margin-top:8px"><input type="text" data-pinput="${c.id}" placeholder="Nieuw product"><button data-addprod="${c.id}" class="ja">+</button></div></details>`).join('')}
+    <div style="display:flex;gap:8px;margin-top:14px"><input id="nwcatnaam" type="text" placeholder="Nieuwe categorie"><button data-addcat="1" class="ja">+</button></div></div>`;
+}
+
+async function schrijf(q, nodig = true) {
+  const { error } = await q; if (error) { alert('Mislukt: ' + error.message); return false; }
+  if (nodig) await laad(); return true;
+}
+async function beweeg(catId, d) {
+  const o = volgordeVoor(beheerWinkel).map(c => c.id), i = o.indexOf(catId), j = i + d;
+  if (j < 0 || j >= o.length) return;
+  [o[i], o[j]] = [o[j], o[i]];
+  await schrijf(sb.from('winkel_volgorde').upsert(o.map((c, n) => ({ winkel_id: beheerWinkel, categorie_id: c, positie: n })), { onConflict: 'winkel_id,categorie_id' }));
+}
+
+app.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
+  if (d.tab) { tab = d.tab; beheerWinkel = null; return render(); }
+  if (d.add) return zetOpLijst(d.add);
+  if (d.nieuw) return nieuwProduct();
+  if (d.del) { await schrijf(sb.from('lijst').delete().eq('id', d.del)); return; }
+  if (d.wis) { await schrijf(sb.from('lijst').delete().eq('afgevinkt', true)); return; }
+  if (d.addwinkel) { const n = document.getElementById('nwwinkel').value.trim(); if (n) await schrijf(sb.from('winkels').insert({ naam: n })); return; }
+  if (d.delwinkel) { if (confirm('Winkel verwijderen?')) await schrijf(sb.from('winkels').delete().eq('id', d.delwinkel)); return; }
+  if (d.orde) { beheerWinkel = d.orde; return vul(); }
+  if (d.klaar) { beheerWinkel = null; return vul(); }
+  if (d.omhoog) return beweeg(d.omhoog, -1);
+  if (d.omlaag) return beweeg(d.omlaag, 1);
+  if (d.addprod) { const i = app.querySelector(`input[data-pinput="${d.addprod}"]`), n = i.value.trim(); if (n) await schrijf(sb.from('producten').insert({ naam: n, categorie_id: d.addprod })); return; }
+  if (d.delprod) { if (confirm('Product verwijderen uit de catalogus?')) await schrijf(sb.from('producten').delete().eq('id', d.delprod)); return; }
+  if (d.addcat) { const n = document.getElementById('nwcatnaam').value.trim(); if (n) await schrijf(sb.from('categorieen').insert({ naam: n, standaard_volgorde: Math.max(0, ...cats.map(c => c.standaard_volgorde)) + 1 })); return; }
+});
+app.addEventListener('input', e => { if (e.target.id === 'zoek') vulSugg(); });
+app.addEventListener('keydown', e => {
+  if (e.target.id !== 'zoek' || e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = zoekwaarde().toLowerCase(), p = prods.find(x => x.naam.toLowerCase() === q);
+  if (p) zetOpLijst(p.id); else nieuwProduct();
+});
+app.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.id === 'nwcat') nieuweCat = t.value;
+  else if (t.id === 'winkelkeuze') { winkel = t.value; try { localStorage.setItem('winkel', winkel); } catch (x) {} vul(); }
+  else if (t.dataset.vink) { await sb.from('lijst').update({ afgevinkt: t.checked }).eq('id', t.dataset.vink); const r = await sb.from('lijst').select('*'); if (!r.error) lijst = r.data; vul(); }
+});
+</script>
+</body>
+</html>
