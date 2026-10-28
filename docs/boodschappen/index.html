@@ -17,6 +17,7 @@
 .nieuw select{margin:8px 0}
 .orde .rij button{padding:6px 12px}
 details{border-bottom:1px solid #eee;padding:8px 0}summary{cursor:pointer;font-weight:500}
+.hv{display:flex;gap:8px;margin-top:8px}.hv input{flex:2}.hv select{flex:1}
 .zoekrij{position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:2}
 </style>
 </head>
@@ -49,7 +50,7 @@ function render() {
   const tabs = [['lijst', '📝 Lijst'], ['winkelen', '🛍️ Winkelen']].concat(B.isOuder ? [['beheer', '⚙️ Beheer']] : []);
   if (!tabs.some(t => t[0] === tab)) tab = 'lijst';
   let paneel = '';
-  if (tab === 'lijst') paneel = `<div class="zoekrij"><input id="zoek" type="search" placeholder="Wat moet er op het lijstje?" autocomplete="off"></div><div id="sugg"></div><div id="vak"></div>`;
+  if (tab === 'lijst') paneel = `<div class="zoekrij"><input id="zoek" type="search" placeholder="Wat moet er op het lijstje?" autocomplete="off"><div class="hv"><input id="hv" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="eenh" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option></select></div></div><div id="sugg"></div><div id="vak"></div>`;
   else if (tab === 'winkelen') paneel = `<select id="winkelkeuze" aria-label="Winkel"><option value="">Standaardvolgorde</option>${winkels.map(w => `<option value="${w.id}" ${w.id === winkel ? 'selected' : ''}>${esc(w.naam)}</option>`).join('')}</select><div id="vak"></div>`;
   else paneel = '<div id="vak"></div>';
   app.innerHTML = `<div class="tabs">${tabs.map(t => `<button data-tab="${t[0]}" class="${t[0] === tab ? 'act' : ''}">${t[1]}</button>`).join('')}</div>${paneel}`;
@@ -70,13 +71,15 @@ function groepen(catLijst, rij) {
   }).join('') || '<p class="sub">Het lijstje is leeg 🎉</p>';
 }
 
+const hv = x => x.l.hoeveelheid ? ` <small class="sub">· ${esc(String(+x.l.hoeveelheid))} ${esc(x.l.eenheid || x.p.eenheid || 'st')}</small>` : '';
+
 function vul() {
   const vak = document.getElementById('vak'); if (!vak) return;
   if (tab === 'lijst') {
-    vak.innerHTML = groepen(cats, x => `<div class="rij ${x.l.afgevinkt ? 'af' : ''}"><span>${esc(x.p.naam)}</span><button data-del="${x.l.id}" aria-label="Verwijder ${esc(x.p.naam)}">✕</button></div>`);
+    vak.innerHTML = groepen(cats, x => `<div class="rij ${x.l.afgevinkt ? 'af' : ''}"><span>${esc(x.p.naam)}${hv(x)}</span><button data-del="${x.l.id}" aria-label="Verwijder ${esc(x.p.naam)}">✕</button></div>`);
     vulSugg();
   } else if (tab === 'winkelen') {
-    vak.innerHTML = groepen(volgordeVoor(winkel), x => `<label class="rij ${x.l.afgevinkt ? 'af' : ''}"><input type="checkbox" data-vink="${x.l.id}" ${x.l.afgevinkt ? 'checked' : ''}><span>${esc(x.p.naam)}</span></label>`)
+    vak.innerHTML = groepen(volgordeVoor(winkel), x => `<label class="rij ${x.l.afgevinkt ? 'af' : ''}"><input type="checkbox" data-vink="${x.l.id}" ${x.l.afgevinkt ? 'checked' : ''}><span>${esc(x.p.naam)}${hv(x)}</span></label>`)
       + (lijst.some(l => l.afgevinkt) ? '<div class="rijknop"><button data-wis="1">Afgevinkte wissen</button></div>' : '');
   } else vulBeheer(vak);
 }
@@ -94,14 +97,19 @@ function vulSugg() {
 }
 
 async function zetOpLijst(productId) {
-  const { error } = await sb.from('lijst').upsert({ product_id: productId, afgevinkt: false }, { onConflict: 'product_id' });
+  const hvEl = document.getElementById('hv'), euEl = document.getElementById('eenh');
+  const n = hvEl ? parseFloat(String(hvEl.value).replace(',', '.')) : NaN, eenh = euEl ? euEl.value : 'st';
+  const { error } = await sb.from('lijst').upsert({ product_id: productId, afgevinkt: false, hoeveelheid: n > 0 ? n : null, eenheid: eenh }, { onConflict: 'product_id' });
   if (error) return alert('Mislukt: ' + error.message);
+  const p = prods.find(x => x.id === productId);
+  if (p && p.eenheid !== eenh) { await sb.from('producten').update({ eenheid: eenh }).eq('id', productId); p.eenheid = eenh; }
+  if (hvEl) hvEl.value = '';
   const z = document.getElementById('zoek'); if (z) { z.value = ''; z.focus(); }
   const r = await sb.from('lijst').select('*'); if (!r.error) lijst = r.data; vul();
 }
 async function nieuwProduct() {
   const naam = zoekwaarde(); if (!naam) return;
-  const { data, error } = await sb.from('producten').insert({ naam, categorie_id: nieuweCat }).select().single();
+  const { data, error } = await sb.from('producten').insert({ naam, categorie_id: nieuweCat, eenheid: (document.getElementById('eenh') || {}).value || 'st' }).select().single();
   if (error) return alert('Opslaan mislukt: ' + error.message);
   prods.push(data); await zetOpLijst(data.id);
 }
@@ -154,7 +162,13 @@ app.addEventListener('click', async e => {
   if (d.delprod) { if (confirm('Product verwijderen uit de catalogus?')) await schrijf(sb.from('producten').delete().eq('id', d.delprod)); return; }
   if (d.addcat) { const n = document.getElementById('nwcatnaam').value.trim(); if (n) await schrijf(sb.from('categorieen').insert({ naam: n, standaard_volgorde: Math.max(0, ...cats.map(c => c.standaard_volgorde)) + 1 })); return; }
 });
-app.addEventListener('input', e => { if (e.target.id === 'zoek') vulSugg(); });
+app.addEventListener('input', e => {
+  if (e.target.id !== 'zoek') return;
+  const q = zoekwaarde().toLowerCase(), eu = document.getElementById('eenh');
+  const m = q && (prods.find(x => x.naam.toLowerCase() === q) || prods.find(x => x.naam.toLowerCase().includes(q)));
+  if (m && eu) eu.value = m.eenheid || 'st';
+  vulSugg();
+});
 app.addEventListener('keydown', e => {
   if (e.target.id !== 'zoek' || e.key !== 'Enter') return;
   e.preventDefault();

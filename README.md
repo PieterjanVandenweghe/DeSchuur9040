@@ -1,6 +1,6 @@
 # Thuis-app 🏠
 
-E�n site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
+Eén site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
 
 ## Structuur
 - `docs/index.html`: startscherm. `docs/opruim/`, `docs/boodschappen/`, `docs/toilet/`: de modules. `docs/gedeeld/`: gedeelde stijl en inlogcode.
@@ -13,7 +13,7 @@ E�n site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Bo
 ### 1. Supabase
 1. Maak op supabase.com een gratis project.
 2. Voer in de **SQL Editor** in deze volgorde uit, elk bestand één keer:
-   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql`
+   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql` > `uitbreidingen.sql` > `cadeautjes.sql`
    (`schema.sql` bevat voorbeeldnamen; pas de echte namen en emoji's later aan in **Table Editor > kinderen**.)
 3. **Authentication > Sign In / Providers > Email**: zet "Allow new users to sign up" **uit**.
 4. Maak voor iedere ouder en ieder kind een account via **Authentication > Users > Add user > Create new user**:
@@ -42,7 +42,9 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 ## Spelregels (aanpasbaar)
 - **Opruimen**: elke avond beoordeelt een ouder per kind (Opgeruimd/Rommel). 7 opgeruimde dagen = 1 joker (max. 2). Bij rommel is de streak weg en volgende dag minder tijd, tenzij een joker wordt ingezet. Per kind instelbaar in de tabel `kinderen`: `beperking` (bv. Social media of Schermtijd), `basis_minuten`, `straf_minuten`. Overige instellingen in `docs/config.js`. Een kind kan na een rommeldag zelf een joker aanvragen; de ouder keurt goed of af. Dagen zonder beoordeling tellen niet mee. Een ouder kan bovenaan een andere dag kiezen.
 - **Boodschappen**: tab *Lijst* (typen, aanvullen uit de catalogus, nieuw product meteen bewaard), tab *Winkelen* (afvinken in de volgorde van de gekozen winkel), tab *Beheer* voor ouders (winkels, volgorde van categorieën per winkel, producten, categorieën). Wijzigingen verschijnen live op andere toestellen.
-- **Toilet-teller**: per dag geweest ja/nee, hoe het was (5-delige schaal, aanpasbaar bovenaan `docs/toilet/index.html`) en buikpijn ja/nee. Alleen de ouder en het kind zelf zien en vullen dit in.
+- **Boodschappen, hoeveelheden**: bij het toevoegen kun je een aantal en een eenheid (st of g) kiezen. De eenheid wordt per product onthouden, het aantal niet.
+- **Toilet-teller**: per dag het aantal keer, hoe het was (5-delige schaal, aanpasbaar bovenaan `docs/toilet/index.html`), buikpijn ja/nee en zakjes genomen ja/nee. Ouders zien daarnaast een overzicht per datum (14, 30 of 90 dagen) met een samenvatting. Alleen de ouder en het kind zelf zien en vullen dit in.
+- **Cadeautjes**: een lijstje per gezinslid. Iedereen die is ingelogd kan iets toevoegen (standaard voor zichzelf, aanpasbaar) met een optionele link. Anderen kunnen "Ik koop dit" aanduiden; de eigenaar van het lijstje ziet dat niet, zodat het een verrassing blijft. Ouders kunnen per lijstje een geheime deellink maken voor mensen zonder account (opa, oma). Wie die link heeft, kan het lijstje zien en aanduiden wat hij of zij koopt. Geef de link niet aan de eigenaar van het lijstje zelf.
 
 ## Beveiliging: wat is openbaar en wat niet
 - **De site-link is publiek.** GitHub Pages kan een pagina niet afschermen (op de gratis variant moet de repo zelfs publiek zijn). Zonder naam en pincode toont elke pagina alleen het inlogscherm en geeft de database niets vrij. Alle pagina's hebben `noindex`.
@@ -51,6 +53,7 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 - **Elke nieuwe tabel moet RLS aan hebben** (`alter table ... enable row level security;` plus regels). Een tabel zonder RLS is leesbaar met de anon key. Controleer dit in Supabase onder **Advisors > Security Advisor**.
 - **Echte namen en e-mailadressen horen niet in de repo.** Houd de SQL-bestanden generiek en pas namen aan in Supabase zelf.
 - **Pincodes zijn zwakker dan wachtwoorden.** Supabase beperkt het aantal pogingen, maar neem voor ouders liefst 8 cijfers. Ook `LOGIN_DOMEIN` (het patroon van de inlogadressen) is zichtbaar.
+- **Deellinks voor cadeautjes** zijn de enige openbare toegang: wie de lange geheime link heeft, ziet één lijstje en kan alleen iets aanduiden. Trek een link in via de pagina Cadeautjes (ouders) als hij verkeerd terechtkomt.
 - **Aanmelden is uitgezet**, zodat niemand zelf een account kan maken. Nieuwe gebruikers maak je alleen in het dashboard aan.
 
 ## Beheer

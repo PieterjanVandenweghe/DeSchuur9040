@@ -13,9 +13,13 @@
 <link rel="stylesheet" href="../gedeeld/stijl.css">
 <style>
 .vraag{margin:16px 0 6px;font-weight:700}
-.week{display:flex;gap:6px;margin-top:16px}.week div{flex:1;text-align:center;background:var(--bg);border-radius:12px;padding:6px 0;font-size:1.3rem}.week small{display:block;font-size:.7rem;color:var(--soft)}
+.week{display:flex;gap:6px;margin-top:16px}.week div{flex:1;text-align:center;background:var(--bg);border-radius:12px;padding:6px 0;font-size:1.2rem}.week small{display:block;font-size:.7rem;color:var(--soft)}
 .knoppen button{padding:12px 6px}.knoppen small{display:block;font-size:.72rem}
 .naam{font-size:1.4rem;font-weight:700}
+.teller{display:flex;align-items:center;gap:14px}.teller b{font-size:2rem;min-width:2.5rem;text-align:center}.teller button{width:52px;font-size:1.5rem}
+.tabelvak{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:480px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap}th{color:var(--soft);font-weight:500;font-size:.9rem}
+tr.leeg td{color:#b5afcf}td.slecht{background:#ffe3ec;font-weight:500}td.let{background:#fff1d0}
 </style>
 </head>
 <body>
@@ -28,48 +32,78 @@ const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
 // Pas de schaal gerust aan: 5 stappen van zacht naar hard
 const SCHAAL = [{ e: '💦', t: 'Waterval' }, { e: '🍦', t: 'Zacht ijsje' }, { e: '🍌', t: 'Perfecte banaan' }, { e: '🥜', t: 'Notenmix' }, { e: '🪨', t: 'Keitje' }];
 const DAGNAMEN = ['zo', 'ma', 'di', 'woe', 'don', 'vrij', 'zat'];
-let rijen = [], datum = B.dagMet(0);
+let rijen = [], datum = B.dagMet(0), periode = 30;
 
 B.start('🚽 Toilet-teller', laad);
 
 async function laad() {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Deze gegevens zijn privé. Log eerst in (knop rechtsboven).</p>'; return; }
-  const r = await sb.from('toilet_dagen').select('*').gte('datum', B.dagMet(-30));
-  if (r.error) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(r.error.message)}. Is toilet.sql uitgevoerd?</p>`; return; }
+  const r = await sb.from('toilet_dagen').select('*').gte('datum', B.dagMet(-90));
+  if (r.error) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(r.error.message)}. Zijn toilet.sql en uitbreidingen.sql uitgevoerd?</p>`; return; }
   rijen = r.data; render();
 }
 
-function zichtbaar() { return B.isOuder ? B.kinderen : B.kinderen.filter(k => B.mijnKind && k.id === B.mijnKind.id); }
+const dagTekst = ds => new Date(ds + 'T12:00').toLocaleDateString('nl-BE', { weekday: 'short', day: 'numeric', month: 'short' });
+const zichtbaar = () => B.isOuder ? B.kinderen : B.kinderen.filter(k => B.mijnKind && k.id === B.mijnKind.id);
+
+function overzicht(k) {
+  const mijn = Object.fromEntries(rijen.filter(r => r.kind_id === k.id).map(r => [r.datum, r]));
+  const dagen = Array.from({ length: periode }, (_, i) => B.dagMet(-i));
+  const ingevuld = dagen.map(d => mijn[d]).filter(Boolean);
+  const totaal = ingevuld.reduce((s, r) => s + (r.aantal || 0), 0);
+  const buik = ingevuld.filter(r => r.buikpijn).length, zak = ingevuld.filter(r => r.zakjes).length;
+  const samen = ingevuld.length
+    ? `Gemiddeld ${(totaal / ingevuld.length).toFixed(1).replace('.', ',')} keer per ingevulde dag · buikpijn op ${buik} dag(en) · zakjes genomen op ${zak} van ${ingevuld.length} ingevulde dagen`
+    : 'Nog niets ingevuld in deze periode.';
+  const body = dagen.map(d => {
+    const r = mijn[d];
+    if (!r) return `<tr class="leeg"><td>${dagTekst(d)}</td><td colspan="4">–</td></tr>`;
+    const s = r.hardheid ? SCHAAL[r.hardheid - 1] : null;
+    return `<tr><td>${dagTekst(d)}</td><td>${r.aantal || 0}×</td><td>${s ? s.e + ' ' + s.t : '–'}</td>
+      <td class="${r.buikpijn ? 'slecht' : ''}">${r.buikpijn ? '🤕 Ja' : 'Nee'}</td><td class="${r.zakjes ? '' : 'let'}">${r.zakjes ? '✅ Ja' : '✖️ Nee'}</td></tr>`;
+  }).join('');
+  return `<section class="kaart"><div class="naam">${esc(k.emoji)} ${esc(k.naam)} · overzicht</div><p class="sub">${samen}</p>
+    <div class="tabelvak"><table><thead><tr><th>Datum</th><th>Keer</th><th>Hoe was het</th><th>Buikpijn</th><th>Zakjes</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+}
 
 function render() {
   const kaarten = zichtbaar().map(k => {
-    const mijn = rijen.filter(r => r.kind_id === k.id), nu = mijn.find(r => r.datum === datum) || { geweest: false, hardheid: null, buikpijn: false, nieuw: true };
+    const mijn = rijen.filter(r => r.kind_id === k.id), nu = mijn.find(r => r.datum === datum) || { aantal: 0, hardheid: null, buikpijn: false, zakjes: false, nieuw: true };
     const week = [-6, -5, -4, -3, -2, -1, 0].map(n => {
       const ds = B.dagMet(n), r = mijn.find(x => x.datum === ds);
-      const e = !r ? '·' : (r.geweest ? (r.hardheid ? SCHAAL[r.hardheid - 1].e : '🚽') : '✖️') + (r.buikpijn ? '🤕' : '');
+      const e = !r ? '·' : `${r.aantal || 0}×${r.buikpijn ? '🤕' : ''}${r.zakjes ? '💊' : ''}`;
       return `<div>${e}<small>${DAGNAMEN[new Date(ds + 'T12:00').getDay()]}</small></div>`;
     }).join('');
-    const kn = (cls, k2, v, tekst) => `<button class="${cls ? 'kies' : ''}" data-k="${k.id}" data-v="${k2}:${v}">${tekst}</button>`;
+    const kn = (act, veld, v, tekst) => `<button class="${act ? 'kies' : ''}" data-k="${k.id}" data-v="${veld}:${v}">${tekst}</button>`;
     return `<section class="kaart"><div class="naam">${esc(k.emoji)} ${esc(k.naam)}</div>
-      <div class="vraag">Naar het toilet geweest?</div>
-      <div class="knoppen">${kn(!nu.nieuw && nu.geweest, 'geweest', 1, 'Ja 🚽')}${kn(!nu.nieuw && !nu.geweest, 'geweest', 0, 'Nee')}</div>
-      ${nu.geweest ? `<div class="vraag">Hoe was het?</div><div class="knoppen">${SCHAAL.map((s, i) => kn(nu.hardheid === i + 1, 'hardheid', i + 1, `${s.e}<small>${s.t}</small>`)).join('')}</div>` : ''}
+      <div class="vraag">Hoeveel keer naar het toilet?</div>
+      <div class="teller"><button data-k="${k.id}" data-v="aantal:-1" aria-label="Eén minder">−</button><b>${nu.aantal || 0}</b><button data-k="${k.id}" data-v="aantal:1" aria-label="Eén meer">+</button></div>
+      ${nu.aantal > 0 ? `<div class="vraag">Hoe was het?</div><div class="knoppen">${SCHAAL.map((s, i) => kn(nu.hardheid === i + 1, 'hardheid', i + 1, `${s.e}<small>${s.t}</small>`)).join('')}</div>` : ''}
       <div class="vraag">Buikpijn?</div>
       <div class="knoppen">${kn(nu.buikpijn, 'buikpijn', 1, 'Ja 🤕')}${kn(!nu.nieuw && !nu.buikpijn, 'buikpijn', 0, 'Nee 😊')}</div>
+      <div class="vraag">Zakjes genomen?</div>
+      <div class="knoppen">${kn(nu.zakjes, 'zakjes', 1, 'Ja 💊')}${kn(!nu.nieuw && !nu.zakjes, 'zakjes', 0, 'Nee')}</div>
       <div class="week">${week}</div></section>`;
-  }).join('') || '<p class="fout">Geen gegevens om te tonen. Log in als ouder, of als kind met je code.</p>';
-  app.innerHTML = `<label class="sub" style="display:block;margin-bottom:12px">Dag: <input id="dag" type="date" max="${B.dagMet(0)}" value="${datum}" style="width:auto"></label>` + kaarten;
+  }).join('') || '<p class="fout">Geen gegevens om te tonen. Log in als ouder, of als kind met je naam en pincode.</p>';
+  const ov = B.isOuder && zichtbaar().length
+    ? `<h2 style="margin:24px 0 8px">Overzicht voor ouders</h2><label class="sub" style="display:block;margin-bottom:12px">Periode: <select id="periode" style="width:auto">${[14, 30, 90].map(n => `<option value="${n}" ${n === periode ? 'selected' : ''}>laatste ${n} dagen</option>`).join('')}</select></label>${zichtbaar().map(overzicht).join('')}` : '';
+  app.innerHTML = `<label class="sub" style="display:block;margin-bottom:12px">Dag: <input id="dag" type="date" max="${B.dagMet(0)}" value="${datum}" style="width:auto"></label>` + kaarten + ov;
 }
 
-app.addEventListener('change', e => { if (e.target.id === 'dag' && e.target.value && e.target.value <= B.dagMet(0)) { datum = e.target.value; render(); } });
+app.addEventListener('change', e => {
+  if (e.target.id === 'dag' && e.target.value && e.target.value <= B.dagMet(0)) { datum = e.target.value; render(); }
+  if (e.target.id === 'periode') { periode = Number(e.target.value); render(); }
+});
 app.addEventListener('click', async e => {
   const b = e.target.closest('button[data-k]'); if (!b) return;
   const [veld, waarde] = b.dataset.v.split(':'), kid = b.dataset.k;
-  const huidig = rijen.find(r => r.kind_id === kid && r.datum === datum) || { geweest: false, hardheid: null, buikpijn: false };
-  const rij = { kind_id: kid, datum, geweest: huidig.geweest, hardheid: huidig.hardheid, buikpijn: huidig.buikpijn };
-  if (veld === 'geweest') { rij.geweest = waarde === '1'; if (!rij.geweest) rij.hardheid = null; }
-  if (veld === 'hardheid') { rij.hardheid = Number(waarde); rij.geweest = true; }
+  const h = rijen.find(r => r.kind_id === kid && r.datum === datum) || { aantal: 0, hardheid: null, buikpijn: false, zakjes: false };
+  const rij = { kind_id: kid, datum, aantal: h.aantal || 0, hardheid: h.hardheid, buikpijn: !!h.buikpijn, zakjes: !!h.zakjes };
+  if (veld === 'aantal') { rij.aantal = Math.max(0, Math.min(30, rij.aantal + Number(waarde))); if (!rij.aantal) rij.hardheid = null; }
+  if (veld === 'hardheid') { rij.hardheid = Number(waarde); if (!rij.aantal) rij.aantal = 1; }
   if (veld === 'buikpijn') rij.buikpijn = waarde === '1';
+  if (veld === 'zakjes') rij.zakjes = waarde === '1';
+  rij.geweest = rij.aantal > 0;
   const { error } = await sb.from('toilet_dagen').upsert(rij, { onConflict: 'kind_id,datum' });
   if (error) return alert('Opslaan mislukt: ' + error.message);
   const i = rijen.findIndex(r => r.kind_id === kid && r.datum === datum);
