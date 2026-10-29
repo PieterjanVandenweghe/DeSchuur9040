@@ -2,7 +2,7 @@
 (function () {
   const C = window.CONFIG;
   const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
-  const B = window.Basis = { sb, C, sessie: null, isOuder: false, mijnKind: null, kinderen: [], ouders: [] };
+  const B = window.Basis = { sb, C, sessie: null, isOuder: false, mijnKind: null, kinderen: [], ouders: [], verborgen: new Set() };
   B.esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   B.iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   B.dagMet = n => { const d = new Date(); d.setDate(d.getDate() + n); return B.iso(d); };
@@ -16,7 +16,7 @@
 
   B.ververs = async cb => {
     if (!B.sessie) {
-      B.kinderen = []; B.ouders = []; B.isOuder = false; B.mijnKind = null;
+      B.kinderen = []; B.ouders = []; B.isOuder = false; B.mijnKind = null; B.verborgen = new Set();
       document.getElementById('loginknop').textContent = 'Inloggen';
       return cb();
     }
@@ -28,6 +28,11 @@
       if (B.ouders.some(x => x.user_id === uid)) B.isOuder = true;
       else B.mijnKind = B.kinderen.find(x => x.user_id === uid) || null;
     }
+    B.verborgen = new Set();
+    if (B.sessie) {
+      const v = await sb.from('app_verbergen').select('app').eq('user_id', B.sessie.user.id);
+      if (!v.error) B.verborgen = new Set(v.data.map(x => x.app));
+    }
     document.getElementById('loginknop').textContent = B.sessie ? 'Uitloggen' : 'Inloggen';
     cb();
   };
@@ -35,6 +40,13 @@
   B.start = (titel, cb, opties = {}) => {
     document.body.insertAdjacentHTML('afterbegin',
       `<header class="top">${opties.thuis ? '' : '<a class="terug" href="../" aria-label="Naar thuis">🏠</a>'}<h1>${B.esc(titel)}</h1><button id="loginknop">Inloggen</button></header>` + DLG);
+    const run = () => {
+      if (opties.app && B.sessie && B.verborgen.has(opties.app)) {
+        const m = document.getElementById('app'); if (m) m.innerHTML = '<p class="fout">Deze app is niet beschikbaar voor jou.</p>';
+        return;
+      }
+      cb();
+    };
     const dlg = document.getElementById('login');
     dlg.querySelectorAll('.annuleer').forEach(b => b.onclick = () => dlg.close());
     document.getElementById('loginknop').onclick = () => {
@@ -47,7 +59,7 @@
       if (error) return alert('Naam of pincode klopt niet. Probeer opnieuw.');
       document.getElementById('pin').value = ''; dlg.close();
     };
-    sb.auth.onAuthStateChange((_e, s) => { B.sessie = s; setTimeout(() => B.ververs(cb), 0); });
-    sb.auth.getSession().then(({ data }) => { if (!B.sessie) { B.sessie = data.session; B.ververs(cb); } });
+    sb.auth.onAuthStateChange((_e, s) => { B.sessie = s; setTimeout(() => B.ververs(run), 0); });
+    sb.auth.getSession().then(({ data }) => { if (!B.sessie) { B.sessie = data.session; B.ververs(run); } });
   };
 })();

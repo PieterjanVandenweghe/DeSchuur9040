@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#ff6b35">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="gedeeld/stijl.css">
+<style>details.inst{margin-top:24px}details.inst summary{cursor:pointer;font-weight:700}.tabelvak{overflow-x:auto}table{border-collapse:collapse;width:100%}th,td{padding:8px;text-align:center;border-bottom:1px solid #eee}th:first-child,td:first-child{text-align:left}td input{width:22px;height:22px}</style>
 </head>
 <body>
 <main id="app"></main>
@@ -18,15 +19,37 @@
 <script src="config.js"></script>
 <script src="gedeeld/basis.js"></script>
 <script>
-Basis.start('Thuis', () => {
-  document.getElementById('app').innerHTML = Basis.sessie
-    ? `<div class="tegels">
-        <a class="tegel" style="--c:#ff6b35" href="opruim/"><b>🧹</b>Opruimstreak</a>
-        <a class="tegel" style="--c:#1fb58f" href="boodschappen/"><b>🛒</b>Boodschappen</a>
-        <a class="tegel" style="--c:#7b5cff" href="toilet/"><b>🚽</b>Toilet-teller</a>
-        <a class="tegel" style="--c:#e8456b" href="cadeautjes/"><b>🎁</b>Cadeautjes</a></div>`
-    : '<p class="fout">Log in met je naam en pincode (knop rechtsboven).</p>';
-}, { thuis: true });
+const B = Basis, esc = B.esc, app = document.getElementById('app');
+const APPS = [['opruim', '🧹', 'Opruimstreak', '#ff6b35', 'opruim/'], ['boodschappen', '🛒', 'Boodschappen', '#1fb58f', 'boodschappen/'],
+              ['toilet', '🚽', 'Toilet-teller', '#7b5cff', 'toilet/'], ['cadeautjes', '🎁', 'Cadeautjes', '#e8456b', 'cadeautjes/'],
+              ['drama', '🎭', 'Dramameter', '#ff9f1c', 'drama/']];
+let verberg = [], open = false;
+
+async function toon() {
+  if (!B.sessie) { app.innerHTML = '<p class="fout">Log in met je naam en pincode (knop rechtsboven).</p>'; return; }
+  const tegels = APPS.filter(a => !B.verborgen.has(a[0])).map(a => `<a class="tegel" style="--c:${a[3]}" href="${a[4]}"><b>${a[1]}</b>${a[2]}</a>`).join('')
+    || '<p class="sub">Er zijn geen apps voor jou ingeschakeld.</p>';
+  let inst = '';
+  if (B.isOuder) {
+    const r = await B.sb.from('app_verbergen').select('*'); verberg = r.data || [];
+    const pers = [...B.ouders.map(o => ({ uid: o.user_id, naam: `${o.emoji || '🧑'} ${o.naam || 'Ouder'}` })), ...B.kinderen.filter(k => k.user_id).map(k => ({ uid: k.user_id, naam: `${k.emoji} ${k.naam}` }))];
+    inst = `<details class="inst" id="inst" ${open ? 'open' : ''}><summary>⚙️ Wie ziet welke apps?</summary>
+      <p class="sub">Vink aan wat iemand mag zien. Ouders beheren dit hier; de toilet-gegevens van een kind zijn ook in de database afgeschermd.</p>
+      <div class="tabelvak"><table><thead><tr><th></th>${APPS.map(a => `<th>${a[1]}<br><small>${a[2]}</small></th>`).join('')}</tr></thead><tbody>
+      ${pers.map(p => `<tr><td>${esc(p.naam)}</td>${APPS.map(a => `<td><input type="checkbox" data-u="${p.uid}" data-a="${a[0]}" aria-label="${esc(p.naam)}: ${a[2]}" ${verberg.some(v => v.user_id === p.uid && v.app === a[0]) ? '' : 'checked'}></td>`).join('')}</tr>`).join('')}
+      </tbody></table></div></details>`;
+  }
+  app.innerHTML = `<div class="tegels">${tegels}</div>${inst}`;
+}
+app.addEventListener('toggle', e => { if (e.target.id === 'inst') open = e.target.open; }, true);
+app.addEventListener('change', async e => {
+  const t = e.target; if (!t.dataset.u) return;
+  const { u, a } = t.dataset;
+  const r = await (t.checked ? B.sb.from('app_verbergen').delete().eq('user_id', u).eq('app', a) : B.sb.from('app_verbergen').insert({ user_id: u, app: a }));
+  if (r.error) { alert('Mislukt: ' + r.error.message + '. Is uitbreidingen2.sql uitgevoerd?'); t.checked = !t.checked; return; }
+  if (u === B.sessie.user.id) B.ververs(toon);
+});
+B.start('Thuis', toon, { thuis: true });
 </script>
 </body>
 </html>

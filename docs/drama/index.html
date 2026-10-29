@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dramameter</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="icon" href="../icon.svg">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="theme-color" content="#ff6b35">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../gedeeld/stijl.css">
+<style>
+.naam{font-size:1.4rem;font-weight:700}.teller{margin:6px 0 0;font-weight:500}
+.week{display:flex;gap:6px;margin:14px 0}.week div{flex:1;text-align:center;background:var(--bg);border-radius:12px;padding:6px 0;font-size:1.3rem}.week small{display:block;font-size:.7rem;color:var(--soft)}
+.meter{background:var(--bg);border-radius:20px;padding:16px;text-align:center}
+.groot{line-height:1;transition:font-size .15s}
+input[type=range]{width:100%;margin:12px 0;accent-color:var(--flame);height:32px}
+.meter button{width:100%;padding:14px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.chip{background:#efeaff;padding:8px 14px}.chip.act{background:var(--joker);color:#fff}
+/* Het grote moment */
+.drama{position:fixed;inset:0;z-index:50;display:grid;place-items:center;text-align:center;padding:24px;background:#fff4e0}
+.drama .binnen{max-width:460px}.drama h2{font-size:2rem;margin:8px 0}.drama .groteemoji{font-size:7rem;line-height:1}
+.drama .zin{font-size:1.2rem;margin:10px 0}.drama .zacht{color:var(--soft)}.drama button{margin-top:16px;padding:14px 22px}
+.t0 .groteemoji{animation:bons 1.2s ease-in-out infinite}
+.t1{background:radial-gradient(circle at 50% 35%,#fff7d6,#ffd9b0)}.t1 .groteemoji{animation:wieg 1.4s ease-in-out infinite}
+.t2{background:#ffd9b0;animation:rood 1s ease-in-out infinite alternate}.t2 .binnen{animation:beef .4s linear infinite}
+.t3{background:#ffe3ec;animation:rood 0.45s ease-in-out infinite alternate}.t3 .binnen{animation:beef .2s linear infinite}
+.t3 h2{color:#c9254f}
+.adem{width:140px;height:140px;border-radius:50%;background:var(--joker);margin:18px auto;display:grid;place-items:center;color:#fff;font-weight:700;animation:ademen 8s ease-in-out infinite}
+.opdracht{background:#fff;border-radius:18px;padding:14px;font-size:1.15rem;margin-top:10px}
+.regen{position:fixed;top:-2rem;font-size:2rem;pointer-events:none;animation:val 2s ease-in forwards;z-index:60}
+@keyframes bons{50%{transform:translateY(-10px)}}@keyframes wieg{50%{transform:rotate(8deg) scale(1.08)}}
+@keyframes beef{0%{transform:translate(2px,1px)}25%{transform:translate(-3px,2px)}50%{transform:translate(2px,-2px)}75%{transform:translate(-2px,-1px)}100%{transform:translate(1px,2px)}}
+@keyframes rood{from{background-color:#ffe3ec}to{background-color:#ff9fb2}}
+@keyframes ademen{0%,100%{transform:scale(.7)}50%{transform:scale(1.2)}}
+@keyframes val{to{transform:translateY(110vh) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.drama,.drama *,.regen{animation:none!important}.regen{display:none}}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../gedeeld/basis.js"></script>
+<script>
+const B = Basis, esc = B.esc, app = document.getElementById('app');
+const NIVEAUS = [
+  { van: 1, tot: 3, e: '🥱', naam: 'Kleine hapering', regen: [], lijnen: ['Een kleine zucht met een snufje theater.', 'Dit was nog maar de opwarming.', 'Nauwelijks een rimpeling in de drama-oceaan.'] },
+  { van: 4, tot: 6, e: '🎭', naam: 'Oscar-genomineerd', regen: ['🎭', '🏆', '👏'], lijnen: ['Oscar voor beste hoofdrol 🏆', 'De jury is ontroerd, maar niet overtuigd.', 'Applaus! Maar het script mag korter.'] },
+  { van: 7, tot: 8, e: '🌋', naam: 'Vulkaanuitbarsting', regen: ['🌋', '🔥', '💥'], lijnen: ['Seismologen meten een flinke beving 📈', 'Het speelgoed is in veiligheid gebracht 🧸', 'De buren hebben het ook gehoord.'] },
+  { van: 9, tot: 10, e: '🚨', naam: 'Code rood', regen: ['🚨', '🌪️', '🚒'], lijnen: ['Alle dramaleraars naar de gang! 🚨', 'Dit gaat de geschiedenisboeken in als Het Grote Drama.', 'Roep de brandweer: het drama staat in lichterlaaie 🔥'] }
+];
+const HERSTEL = ['Drink een groot glas water 💧', 'Doe 10 sprongen op de plaats 🐸', 'Geef iemand een knuffel 🤗', 'Zeg “sorry” of “dankjewel” 💬', 'Tel rustig tot 10 🔢', 'Wandel een rondje door het huis 🚶', 'Maak je klein als een muis, en dan groot als een reus 🐭🦒', 'Haal drie keer diep adem 🌬️'];
+const tierIdx = n => NIVEAUS.findIndex(t => n >= t.van && n <= t.tot);
+const kies = a => a[Math.floor(Math.random() * a.length)];
+let gekozen = null, anderNaam = '', niveau = 3;
+
+B.start('🎭 Dramameter', render, { app: 'drama' });
+
+// Iedereen kan iedereen aanduiden: gezinsleden, jezelf of iemand anders (vrije naam). Er wordt niets bewaard.
+const personen = () => [
+  ...B.ouders.map(o => ({ id: 'o' + o.user_id, naam: o.naam || 'Ouder', emoji: o.emoji || '🧑', uid: o.user_id })),
+  ...B.kinderen.map(k => ({ id: 'k' + k.id, naam: k.naam, emoji: k.emoji, uid: k.user_id }))
+];
+
+function render() {
+  if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }
+  const ik = B.sessie.user.id, lijst = personen();
+  const chips = lijst.map(p => `<button class="chip ${gekozen === p.id ? 'act' : ''}" data-wie="${p.id}">${esc(p.emoji)} ${esc(p.naam)}${p.uid === ik ? ' (ik)' : ''}</button>`).join('')
+    + `<button class="chip ${gekozen === 'ander' ? 'act' : ''}" data-wie="ander">➕ Iemand anders</button>`;
+  const t = NIVEAUS[tierIdx(niveau)];
+  app.innerHTML = `<div class="kaart"><strong>Wie maakt er drama?</strong><div class="chips">${chips}</div>
+      ${gekozen === 'ander' ? `<input id="ander" type="text" maxlength="40" placeholder="Naam (bv. de hond, oma, de buurman)" value="${esc(anderNaam)}" style="margin-top:10px">` : ''}</div>
+    <div class="kaart"><div class="meter"><div class="groot" id="e" style="font-size:${2.5 + niveau * 0.45}rem">${t.e}</div>
+      <input type="range" id="slider" min="1" max="10" value="${niveau}" aria-label="Hoe groot is het drama?">
+      <div class="sub" id="t">${niveau} · ${t.naam}</div>
+      <button class="ja" data-meld="1">Drama melden 🎭</button></div></div>`;
+}
+
+app.addEventListener('input', e => {
+  if (e.target.id === 'slider') {
+    niveau = Number(e.target.value); const t = NIVEAUS[tierIdx(niveau)];
+    const em = document.getElementById('e'); em.textContent = t.e; em.style.fontSize = (2.5 + niveau * 0.45) + 'rem';
+    document.getElementById('t').textContent = `${niveau} · ${t.naam}`;
+  }
+  if (e.target.id === 'ander') anderNaam = e.target.value;
+});
+
+function regen(lijst) {
+  if (!lijst.length) return;
+  for (let i = 0; i < 26; i++) {
+    const s = document.createElement('span'); s.className = 'regen'; s.textContent = lijst[i % lijst.length];
+    s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() * .8 + 's';
+    document.body.appendChild(s); setTimeout(() => s.remove(), 3200);
+  }
+}
+function moment(n, naam) {
+  const ti = tierIdx(n), t = NIVEAUS[ti];
+  const el = document.createElement('div'); el.className = `drama t${ti}`; el.setAttribute('role', 'dialog'); el.setAttribute('aria-live', 'assertive');
+  el.innerHTML = `<div class="binnen"><div class="groteemoji">${t.e}</div><h2>${esc(t.naam.toUpperCase())}</h2>
+    <p class="zin">${esc(naam)}: ${n} op 10. ${esc(kies(t.lijnen))}</p>
+    <p class="zacht">Een beetje theater mag, maar zo doen we het niet. Tijd om te resetten 🧘</p><button class="ja" id="reset">Reset starten</button></div>`;
+  document.body.appendChild(el); regen(t.regen);
+  try { if (n >= 7 && navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (x) {}
+  el.querySelector('#reset').onclick = () => {
+    el.className = 'drama';
+    const toon = () => { el.querySelector('.opdracht').textContent = kies(HERSTEL); };
+    el.innerHTML = `<div class="binnen"><h2>Even resetten 🧘</h2><div class="adem" aria-hidden="true">in… uit…</div>
+      <p class="zin">Adem rustig mee met de cirkel. Doe dan dit:</p><div class="opdracht"></div>
+      <div class="rijknop" style="justify-content:center"><button id="nogeen">Andere opdracht</button><button class="ja" id="klaar">Gedaan ✅</button></div></div>`;
+    toon();
+    el.querySelector('#nogeen').onclick = toon;
+    el.querySelector('#klaar').onclick = () => { el.remove(); regen(['⭐', '🎉', '✨']); };
+  };
+}
+
+app.addEventListener('click', e => {
+  const w = e.target.closest('button[data-wie]');
+  if (w) { gekozen = w.dataset.wie; return render(); }
+  if (!e.target.closest('button[data-meld]')) return;
+  let naam;
+  if (gekozen === 'ander') naam = anderNaam.trim() || 'Iemand';
+  else { const p = personen().find(x => x.id === gekozen); if (!p) return alert('Kies eerst wie het drama maakt.'); naam = p.naam; }
+  moment(niveau, naam);
+});
+</script>
+</body>
+</html>

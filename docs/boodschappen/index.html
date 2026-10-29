@@ -31,7 +31,7 @@ const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
 let cats = [], prods = [], lijst = [], winkels = [], volg = [], tab = 'lijst', beheerWinkel = null, kanaal = null, nieuweCat = null;
 let winkel = ''; try { winkel = localStorage.getItem('winkel') || ''; } catch (e) {}
 
-B.start('🛒 Boodschappen', () => { laad(); });
+B.start('🛒 Boodschappen', () => { laad(); }, { app: 'boodschappen' });
 
 async function laad() {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }

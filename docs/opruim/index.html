@@ -193,6 +193,8 @@ async function laad() {
     document.getElementById('app').innerHTML = '<p class="fout">Log eerst in (knop rechtsboven) om de streaks te zien.</p>';
     return;
   }
+  const vb = await sb.from('app_verbergen').select('app').eq('user_id', sessie.user.id).eq('app', 'opruim');
+  if (!vb.error && vb.data.length) { document.getElementById('app').innerHTML = '<p class="fout">Deze app is niet beschikbaar voor jou.</p>'; return; }
   const [k, d, a, o] = await Promise.all([
     sb.from('kinderen').select('*').order('volgorde'),
     sb.from('dagen').select('*').order('datum'),

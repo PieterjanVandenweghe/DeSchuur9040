@@ -1,9 +1,9 @@
-# DeSchuur9040-app
+# Thuis-app 🏠
 
-Eén site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
-Een site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute) en **Toilet-teller**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
+Eén site met vijf modules: **Opruimstreak** (streak + jokers + schermtijd), **Boodschappen** (lijst per winkelroute), **Cadeaus**, **Toilet-teller** en **Dramameter**. Gehost op GitHub Pages, gegevens in Supabase (gratis). Iedereen logt in met naam en pincode.
 
 ## Structuur
+
 - `docs/index.html`: startscherm. `docs/opruim/`, `docs/boodschappen/`, `docs/toilet/`: de modules. `docs/gedeeld/`: gedeelde stijl en inlogcode.
 - `docs/config.js`: Supabase-gegevens en instellingen, voor alle modules.
 - `supabase/*.sql`: de database.
@@ -14,7 +14,7 @@ Een site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Bo
 ### 1. Supabase
 1. Maak op supabase.com een gratis project.
 2. Voer in de **SQL Editor** in deze volgorde uit, elk bestand één keer:
-   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql` > `uitbreidingen.sql` > `cadeautjes.sql`
+   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql` > `uitbreidingen.sql` > `cadeautjes.sql` > `uitbreidingen2.sql` > `drama.sql`
    (`schema.sql` bevat voorbeeldnamen; pas de echte namen en emoji's later aan in **Table Editor > kinderen**.)
 3. **Authentication > Sign In / Providers > Email**: zet "Allow new users to sign up" **uit**.
 4. Maak voor iedere ouder en ieder kind een account via **Authentication > Users > Add user > Create new user**:
@@ -25,7 +25,7 @@ Een site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **Bo
    ```sql
    -- ouder
    insert into ouders (user_id, naam, emoji)
-     select id, 'Papa', 'ðŸ§”' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
+     select id, 'Papa', '🧔' from auth.users where email = 'papa@gezin.example.com' on conflict do nothing;
    -- kind (login_email = het adres van het account)
    update kinderen set login_email = 'emma@gezin.example.com' where volgorde = 1;
    update kinderen k set user_id = u.id from auth.users u where u.email = k.login_email;
@@ -44,7 +44,8 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 - **Opruimen**: elke avond beoordeelt een ouder per kind (Opgeruimd/Rommel). 7 opgeruimde dagen = 1 joker (max. 2). Bij rommel is de streak weg en volgende dag minder tijd, tenzij een joker wordt ingezet. Per kind instelbaar in de tabel `kinderen`: `beperking` (bv. Social media of Schermtijd), `basis_minuten`, `straf_minuten`. Overige instellingen in `docs/config.js`. Een kind kan na een rommeldag zelf een joker aanvragen; de ouder keurt goed of af. Dagen zonder beoordeling tellen niet mee. Een ouder kan bovenaan een andere dag kiezen.
 - **Boodschappen**: tab *Lijst* (typen, aanvullen uit de catalogus, nieuw product meteen bewaard), tab *Winkelen* (afvinken in de volgorde van de gekozen winkel), tab *Beheer* voor ouders (winkels, volgorde van categorieën per winkel, producten, categorieën). Wijzigingen verschijnen live op andere toestellen.
 - **Boodschappen, hoeveelheden**: bij het toevoegen kun je een aantal en een eenheid (st of g) kiezen. De eenheid wordt per product onthouden, het aantal niet.
-- **Toilet-teller**: per dag het aantal keer, hoe het was (5-delige schaal, aanpasbaar bovenaan `docs/toilet/index.html`), buikpijn ja/nee en zakjes genomen ja/nee. Ouders zien daarnaast een overzicht per datum (14, 30 of 90 dagen) met een samenvatting. Alleen de ouder en het kind zelf zien en vullen dit in.
+- **Toilet-teller**: elke keer naar het toilet wordt apart toegevoegd met een eigen score (5-delige schaal, aanpasbaar bovenaan `docs/toilet/index.html`, of "weet niet"), per dag buikpijn ja/nee en zakjes genomen ja/nee. Ouders zien daarnaast een overzicht per datum (14, 30 of 90 dagen) met per keer de score en een samenvatting. Alleen de ouder en het kind zelf zien en vullen dit in.
+- **Dramameter** (puur voor de grap, geen straf en geen gevolgen voor schermtijd): een slider van 1 tot 10 voor de grootte van het drama, met een eigen scherm per niveau (beven, sirene, grappige uitspraak), daarna een korte reset met een ademcirkel en een herstelopdracht. Per kind staat er een teller "dagen zonder drama". Een ouder kan een moment melden; een kind kan zichzelf aanduiden. Tekst en opdrachten staan bovenaan in `docs/drama/index.html`.
 - **Cadeautjes**: een lijstje per gezinslid. Iedereen die is ingelogd kan iets toevoegen (standaard voor zichzelf, aanpasbaar) met een optionele link. Anderen kunnen "Ik koop dit" aanduiden; de eigenaar van het lijstje ziet dat niet, zodat het een verrassing blijft. Ouders kunnen per lijstje een geheime deellink maken voor mensen zonder account (opa, oma). Wie die link heeft, kan het lijstje zien en aanduiden wat hij of zij koopt. Geef de link niet aan de eigenaar van het lijstje zelf.
 
 ## Beveiliging: wat is openbaar en wat niet
@@ -59,6 +60,9 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 
 ## Beheer
 - **Nieuwe ouder**: account maken (stap 4) en de `insert into ouders`-regel uit stap 5 uitvoeren. Een ouder verwijderen: rij uit `ouders` wissen en eventueel de gebruiker.
-- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = 'ðŸ‘' where volgorde = 1;`.
+- **Namen of emoji's wijzigen**: Table Editor > `kinderen`, of `update kinderen set naam = 'Emma', emoji = '🏑' where volgorde = 1;`.
 - **Pincode vergeten**: Authentication > Users > de gebruiker kiezen en een nieuw wachtwoord instellen, of een nieuw account aanmaken.
 - **Inlognaam wijzigen**: het e-mailadres van de gebruiker aanpassen; zie de voorbeeld-SQL onderaan `supabase/privacy.sql`.
+
+## Wie ziet welke apps?
+Ouders kunnen op het startscherm onder **⚙️ Wie ziet welke apps?** per persoon aan- of uitvinken welke apps zichtbaar zijn (voer eerst `supabase/uitbreidingen2.sql` uit). Een verborgen app verdwijnt als tegel en meldt "niet beschikbaar" als iemand de link toch opent. Voor de toilet-teller is dat ook in de database afgedwongen: een kind waarvoor die app is uitgezet, kan de gegevens niet meer lezen of schrijven. Bij de andere apps gaat het om zichtbaarheid, niet om een extra slot op de gegevens.

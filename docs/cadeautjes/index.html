@@ -27,7 +27,7 @@
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
 let personen = [], items = [], claims = [], delen = [], gekozen = null, voorWie = null, me = null;
 
-B.start('🎁 Cadeautjes', laad);
+B.start('🎁 Cadeautjes', laad, { app: 'cadeautjes' });
 window.addEventListener('focus', () => { if (B.sessie) laad(); });
 
 async function laad() {
