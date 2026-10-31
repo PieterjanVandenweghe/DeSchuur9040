@@ -17,6 +17,9 @@
 .nu{background:#fff7d6;border-radius:12px}
 .vorm{display:grid;gap:8px;margin-top:10px}
 .gerecht a,.rij a{text-decoration:none}
+.ingr{background:var(--bg);border-radius:16px;padding:10px 12px;margin:0 0 10px}
+.hv{display:flex;gap:8px}.hv input{flex:2}.hv select{flex:1}
+button[disabled]{opacity:.4;cursor:default}
 </style>
 </head>
 <body>
@@ -26,12 +29,16 @@
 <script src="../gedeeld/basis.js"></script>
 <script>
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
+const MENU_BEWAREN_WEKEN = 2;   // zoveel weken in het verleden blijft het menu bewaard
 const DAGEN = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
-let tab = 'menu', recepten = [], menu = [], bewerk = null, filter = '';
+let tab = 'menu', recepten = [], menu = [], producten = [], categorieen = [], ingr = [], ingrOk = true, bewerk = null, filter = '', open = null;
 const maandagVan = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
 const plus = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const kort = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+const minWeek = () => plus(maandagVan(new Date()), -7 * MENU_BEWAREN_WEKEN);
 let week = maandagVan(new Date());
+const num = n => String(+Number(n).toFixed(2));
+const pnaam = id => (producten.find(p => p.id === id) || { naam: '?' }).naam;
 function veilig(l) {
   if (!l) return null;
   try { const u = new URL(l.includes('://') ? l : 'https://' + l); return /^https?:$/.test(u.protocol) ? u.href : null; } catch (e) { return null; }
@@ -39,18 +46,25 @@ function veilig(l) {
 const lnk = (u, t) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`;
 
 B.start('🍽️ Menu & recepten', laad, { app: 'menu' });
-window.addEventListener('focus', () => { if (B.sessie && bewerk === null) laad(); });
+window.addEventListener('focus', () => { if (B.sessie && bewerk === null && open === null) laad(); });
 
 async function laadMenu() {
   const r = await sb.from('menu_dagen').select('*').eq('week', B.iso(week));
   if (r.error) throw r.error; menu = r.data;
 }
+async function laadIngr() {
+  const r = await sb.from('recept_ingredienten').select('*');
+  ingrOk = !r.error; ingr = r.error ? [] : r.data;
+}
 async function laad() {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }
   try {
-    const rec = await sb.from('recepten').select('*').order('titel');
-    if (rec.error) throw rec.error; recepten = rec.data; await laadMenu();
-  } catch (e) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(e.message)}. Is menu.sql uitgevoerd?</p>`; return; }
+    await sb.from('menu_dagen').delete().lt('week', B.iso(minWeek()));   // oude menu's opruimen
+    const [rec, prod, cat] = await Promise.all(['recepten', 'producten', 'categorieen'].map(t => sb.from(t).select('*')));
+    const f = rec.error || prod.error || cat.error; if (f) throw f;
+    recepten = rec.data.sort((a, b) => a.titel.localeCompare(b.titel)); producten = prod.data; categorieen = cat.data.sort((a, b) => a.standaard_volgorde - b.standaard_volgorde);
+    await laadIngr(); await laadMenu();
+  } catch (e) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(e.message)}. Zijn menu.sql en boodschappen.sql uitgevoerd?</p>`; return; }
   render();
 }
 
@@ -61,8 +75,9 @@ function render() {
 }
 
 function menuHtml() {
-  const nu = B.iso(new Date());
-  const nav = `<div class="weeknav"><button data-week="-1" aria-label="Vorige week">◀</button><div><b>Week van ${kort(week)} tot ${kort(plus(week, 6))}</b></div><button data-week="1" aria-label="Volgende week">▶</button></div>
+  const nu = B.iso(new Date()), kanTerug = week > minWeek();
+  const metIngr = menu.filter(m => m.recept_id && ingr.some(x => x.recept_id === m.recept_id)).length;
+  const nav = `<div class="weeknav"><button data-week="-1" aria-label="Vorige week" ${kanTerug ? '' : 'disabled'}>◀</button><div><b>Week van ${kort(week)} tot ${kort(plus(week, 6))}</b></div><button data-week="1" aria-label="Volgende week">▶</button></div>
     <div class="rijknop" style="justify-content:center;margin:0 0 10px"><button data-week="0">Deze week</button></div>`;
   const rijen = DAGEN.map((naam, i) => {
     const d = plus(week, i), m = menu.find(x => x.dag === i) || {}, r = recepten.find(x => x.id === m.recept_id), isNu = B.iso(d) === nu;
@@ -79,23 +94,40 @@ function menuHtml() {
     if (veilig(m.link)) delen.push(lnk(veilig(m.link), '🔗 link'));
     return `<div class="rij ${isNu ? 'nu' : ''}"><div class="dn"><b>${naam}</b><small>${kort(d)}</small></div><span class="gerecht">${delen.join('<br>') || '<span class="sub">Nog niets gepland</span>'}</span><button data-bewerk="${i}" aria-label="Bewerk ${naam}">✎</button></div>`;
   }).join('');
-  return nav + `<div class="kaart">${rijen}</div>`;
+  const weekknop = metIngr ? `<div class="rijknop" style="justify-content:center;margin:0 0 10px"><button class="ja" data-weeklijst="1">🛒 Ingrediënten van deze week op het lijstje</button></div>` : '';
+  return nav + weekknop + `<div class="kaart">${rijen}</div><p class="sub">Menu’s ouder dan ${MENU_BEWAREN_WEKEN} weken worden automatisch gewist.</p>`;
 }
 
 function receptenHtml() {
-  return `<div class="kaart"><strong>Recept toevoegen</strong><div class="vorm">
+  return `<datalist id="prodlijst">${producten.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => `<option value="${esc(p.naam)}">`).join('')}</datalist>
+    <div class="kaart"><strong>Recept toevoegen</strong><div class="vorm">
       <input id="rtitel" type="text" maxlength="200" placeholder="Naam van het gerecht" autocomplete="off">
       <input id="rlink" type="text" inputmode="url" maxlength="1000" placeholder="Link naar het recept (optioneel)" autocomplete="off">
       <input id="rnotitie" type="text" maxlength="500" placeholder="Notitie (optioneel, bv. “met de kinderen gemaakt”)" autocomplete="off">
       <button class="ja" data-addrec="1">Toevoegen</button></div></div>
     <div class="kaart"><input id="rzoek" type="search" placeholder="Zoek in recepten" value="${esc(filter)}" autocomplete="off"><div id="rlijst"></div></div>`;
 }
+function paneel(r) {
+  const lijst = ingr.filter(x => x.recept_id === r.id);
+  const andere = (categorieen.find(c => c.naam === 'Andere') || categorieen[0] || {}).id;
+  return `<div class="ingr">
+    ${ingrOk ? '' : '<p class="fout">Ingrediënten niet beschikbaar. Is recepten-ingredienten.sql uitgevoerd?</p>'}
+    ${lijst.map(x => `<div class="rij"><span>${esc(pnaam(x.product_id))}${x.hoeveelheid ? ` <small class="sub">· ${num(x.hoeveelheid)} ${x.eenheid}</small>` : ''}</span><button data-delingr="${x.id}" aria-label="Verwijder ${esc(pnaam(x.product_id))}">✕</button></div>`).join('') || '<p class="sub">Nog geen ingrediënten.</p>'}
+    <div class="vorm"><input type="text" list="prodlijst" data-iprod="${r.id}" id="iprod-${r.id}" placeholder="Ingrediënt (typ om te zoeken)" autocomplete="off">
+      <div class="hv"><input id="ihv-${r.id}" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="ieh-${r.id}" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option></select></div>
+      <select id="icat-${r.id}" aria-label="Categorie voor een nieuw product">${categorieen.map(c => `<option value="${c.id}" ${c.id === andere ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select>
+      <small class="sub">De categorie telt alleen voor een nieuw product dat nog niet in Boodschappen staat.</small>
+      <button class="ja" data-addingr="${r.id}">Ingrediënt toevoegen</button></div>
+    ${lijst.length ? `<div class="rijknop" style="justify-content:flex-start"><button class="ja" data-oplijst="${r.id}">🛒 Op het boodschappenlijstje</button></div>` : ''}</div>`;
+}
 function vulRecepten() {
   const el = document.getElementById('rlijst'); if (!el) return;
   const me = B.sessie.user.id, q = filter.trim().toLowerCase();
   const lijst = recepten.filter(r => !q || (r.titel + ' ' + (r.notitie || '')).toLowerCase().includes(q));
-  el.innerHTML = lijst.map(r => `<div class="rij"><span>${esc(r.titel)} ${veilig(r.link) ? lnk(veilig(r.link), '🔗') : ''}${r.notitie ? ` <small class="sub">· ${esc(r.notitie)}</small>` : ''}</span>${B.isOuder || r.toegevoegd_door === me ? `<button data-delrec="${r.id}" aria-label="Verwijder ${esc(r.titel)}">✕</button>` : ''}</div>`).join('')
-    || `<p class="sub">${recepten.length ? 'Geen recepten gevonden.' : 'Nog geen recepten. Voeg er hierboven een toe.'}</p>`;
+  el.innerHTML = lijst.map(r => {
+    const n = ingr.filter(x => x.recept_id === r.id).length;
+    return `<div><div class="rij"><span>${esc(r.titel)} ${veilig(r.link) ? lnk(veilig(r.link), '🔗') : ''}${r.notitie ? ` <small class="sub">· ${esc(r.notitie)}</small>` : ''}</span><button data-open="${r.id}" aria-expanded="${open === r.id}">🧾 ${n}</button>${B.isOuder || r.toegevoegd_door === me ? `<button data-delrec="${r.id}" aria-label="Verwijder ${esc(r.titel)}">✕</button>` : ''}</div>${open === r.id ? paneel(r) : ''}</div>`;
+  }).join('') || `<p class="sub">${recepten.length ? 'Geen recepten gevonden.' : 'Nog geen recepten. Voeg er hierboven een toe.'}</p>`;
 }
 
 async function voegToe() {
@@ -108,13 +140,64 @@ async function voegToe() {
   await laad();
 }
 
-app.addEventListener('input', e => { if (e.target.id === 'rzoek') { filter = e.target.value; vulRecepten(); } });
+async function addIngr(rid) {
+  const naam = document.getElementById('iprod-' + rid).value.trim(); if (!naam) return;
+  const n = parseFloat(String(document.getElementById('ihv-' + rid).value).replace(',', '.')), eenh = document.getElementById('ieh-' + rid).value;
+  let p = producten.find(x => x.naam.toLowerCase() === naam.toLowerCase());
+  if (!p) {
+    const r = await sb.from('producten').insert({ naam, categorie_id: document.getElementById('icat-' + rid).value, eenheid: eenh }).select().single();
+    if (r.error) return alert('Nieuw product opslaan mislukt: ' + r.error.message);
+    p = r.data; producten.push(p);
+  }
+  const { error } = await sb.from('recept_ingredienten').upsert({ recept_id: rid, product_id: p.id, hoeveelheid: n > 0 ? n : null, eenheid: eenh }, { onConflict: 'recept_id,product_id' });
+  if (error) return alert('Opslaan mislukt: ' + error.message);
+  await laadIngr(); render();
+}
+
+// Zet ingrediënten op het boodschappenlijstje en telt ze op bij wat er al staat.
+async function opLijst(lijstIngr) {
+  const som = new Map(), conflicten = [];
+  for (const x of lijstIngr) {
+    const h = x.hoeveelheid == null ? null : Number(x.hoeveelheid), s = som.get(x.product_id);
+    if (!s) som.set(x.product_id, { eenheid: x.eenheid, hoeveelheid: h });
+    else if (s.eenheid === x.eenheid) { if (h != null) s.hoeveelheid = (s.hoeveelheid || 0) + h; }
+    else conflicten.push(`${pnaam(x.product_id)}: ${h == null ? 'zonder aantal' : num(h) + ' ' + x.eenheid} niet opgeteld (andere eenheid binnen de selectie)`);
+  }
+  const cur = await sb.from('lijst').select('*');
+  if (cur.error) return alert('Het lijstje laden mislukt: ' + cur.error.message);
+  const rijen = []; let nieuw = 0, opgeteld = 0, alAanwezig = 0;
+  for (const [pid, s] of som) {
+    const e = cur.data.find(x => x.product_id === pid), prod = producten.find(p => p.id === pid);
+    const basis = { product_id: pid, afgevinkt: false };
+    if (!e || e.afgevinkt) { rijen.push({ ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }); nieuw++; continue; }
+    const eEen = e.eenheid || (prod && prod.eenheid) || 'st';
+    if (s.hoeveelheid == null) { alAanwezig++; continue; }
+    if (e.hoeveelheid == null) { rijen.push({ ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }); opgeteld++; continue; }
+    if (eEen === s.eenheid) { rijen.push({ ...basis, hoeveelheid: Math.round((Number(e.hoeveelheid) + s.hoeveelheid) * 100) / 100, eenheid: eEen }); opgeteld++; }
+    else conflicten.push(`${pnaam(pid)}: ${num(s.hoeveelheid)} ${s.eenheid} niet opgeteld, want op het lijstje staat ${num(e.hoeveelheid)} ${eEen}`);
+  }
+  if (rijen.length) {
+    const r = await sb.from('lijst').upsert(rijen, { onConflict: 'product_id' });
+    if (r.error) return alert('Op het lijstje zetten mislukt: ' + r.error.message);
+  }
+  alert(`Klaar: ${nieuw} nieuw op het lijstje, ${opgeteld} opgeteld bij wat er stond, ${alAanwezig} stonden er al.` + (conflicten.length ? '\n\nNiet opgeteld:\n• ' + conflicten.join('\n• ') : ''));
+}
+
+app.addEventListener('input', e => {
+  if (e.target.id === 'rzoek') { filter = e.target.value; vulRecepten(); }
+  if (e.target.dataset.iprod) {   // eenheid van een bestaand product alvast invullen
+    const p = producten.find(x => x.naam.toLowerCase() === e.target.value.trim().toLowerCase());
+    if (p) document.getElementById('ieh-' + e.target.dataset.iprod).value = p.eenheid || 'st';
+  }
+});
 app.addEventListener('keydown', e => { if (e.key === 'Enter' && ['rtitel', 'rlink', 'rnotitie'].includes(e.target.id)) { e.preventDefault(); voegToe(); } });
 app.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
-  if (d.tab) { tab = d.tab; bewerk = null; return render(); }
+  if (d.tab) { tab = d.tab; bewerk = null; open = null; return render(); }
   if (d.week !== undefined) {
-    week = d.week === '0' ? maandagVan(new Date()) : plus(week, 7 * Number(d.week)); bewerk = null;
+    const nieuw = d.week === '0' ? maandagVan(new Date()) : plus(week, 7 * Number(d.week));
+    if (nieuw < minWeek()) return;
+    week = nieuw; bewerk = null;
     try { await laadMenu(); } catch (x) { return alert('Laden mislukt: ' + x.message); }
     return render();
   }
@@ -132,6 +215,24 @@ app.addEventListener('click', async e => {
     bewerk = null;
     try { await laadMenu(); } catch (x) { return alert('Laden mislukt: ' + x.message); }
     return render();
+  }
+  if (d.weeklijst) {
+    const lijst = menu.filter(m => m.recept_id).flatMap(m => ingr.filter(x => x.recept_id === m.recept_id));
+    if (!lijst.length) return;
+    if (!confirm('De ingrediënten van deze week op het boodschappenlijstje zetten? Doe dit maar één keer per week: een tweede keer worden de hoeveelheden opnieuw opgeteld.')) return;
+    return opLijst(lijst);
+  }
+  if (d.open) { open = open === d.open ? null : d.open; return vulRecepten(); }
+  if (d.addingr) return addIngr(d.addingr);
+  if (d.delingr) {
+    const { error } = await sb.from('recept_ingredienten').delete().eq('id', d.delingr);
+    if (error) return alert('Verwijderen mislukt: ' + error.message);
+    await laadIngr(); return render();
+  }
+  if (d.oplijst) {
+    const r = recepten.find(x => x.id === d.oplijst);
+    if (!confirm(`De ingrediënten van “${r.titel}” op het boodschappenlijstje zetten? Een tweede keer tellen ze opnieuw mee.`)) return;
+    return opLijst(ingr.filter(x => x.recept_id === d.oplijst));
   }
   if (d.addrec) return voegToe();
   if (d.delrec) {
