@@ -116,7 +116,7 @@ function paneel(r) {
     ${ingrOk ? '' : '<p class="fout">Ingrediënten niet beschikbaar. Is recepten-ingredienten.sql uitgevoerd?</p>'}
     ${lijst.map(x => `<div class="rij"><span>${esc(pnaam(x.product_id))}${x.hoeveelheid ? ` <small class="sub">· ${num(x.hoeveelheid)} ${x.eenheid}</small>` : ''}</span><button data-delingr="${x.id}" aria-label="Verwijder ${esc(pnaam(x.product_id))}">✕</button></div>`).join('') || '<p class="sub">Nog geen ingrediënten.</p>'}
     <div class="vorm"><input type="text" list="prodlijst" data-iprod="${r.id}" id="iprod-${r.id}" placeholder="Ingrediënt (typ om te zoeken)" autocomplete="off">
-      <div class="hv"><input id="ihv-${r.id}" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="ieh-${r.id}" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option></select></div>
+      <div class="hv"><input id="ihv-${r.id}" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="ieh-${r.id}" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option><option value="ml">ml</option></select></div>
       <select id="icat-${r.id}" aria-label="Categorie voor een nieuw product">${categorieen.map(c => `<option value="${c.id}" ${c.id === andere ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select>
       <small class="sub">De categorie telt alleen voor een nieuw product dat nog niet in Boodschappen staat.</small>
       <button class="ja" data-addingr="${r.id}">Ingrediënt toevoegen</button></div>
