@@ -20,6 +20,8 @@
 .ingr{background:var(--bg);border-radius:16px;padding:10px 12px;margin:0 0 10px}
 .hv{display:flex;gap:8px}.hv input{flex:2}.hv select{flex:1}
 button[disabled]{opacity:.4;cursor:default}
+#plan{max-width:440px;width:92vw}.planlijst{max-height:50vh;overflow:auto;margin:8px 0}.rij.uit{color:var(--soft)}.rij label{cursor:pointer}
+#plan .rijknop{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -154,33 +156,58 @@ async function addIngr(rid) {
   await laadIngr(); render();
 }
 
-// Zet ingrediënten op het boodschappenlijstje en telt ze op bij wat er al staat.
-async function opLijst(lijstIngr) {
-  const som = new Map(), conflicten = [];
+// Zet ingrediënten op het boodschappenlijstje: eerst een overzicht om per ingrediënt te kiezen, dan opslaan.
+const hv = (n, u) => n == null ? 'zonder aantal' : `${num(n)} ${u}`;
+function berekenPlan(lijstIngr, cur) {
+  const som = new Map(), items = [];
   for (const x of lijstIngr) {
     const h = x.hoeveelheid == null ? null : Number(x.hoeveelheid), s = som.get(x.product_id);
     if (!s) som.set(x.product_id, { eenheid: x.eenheid, hoeveelheid: h });
     else if (s.eenheid === x.eenheid) { if (h != null) s.hoeveelheid = (s.hoeveelheid || 0) + h; }
-    else conflicten.push(`${pnaam(x.product_id)}: ${h == null ? 'zonder aantal' : num(h) + ' ' + x.eenheid} niet opgeteld (andere eenheid binnen de selectie)`);
+    else items.push({ naam: pnaam(x.product_id), rij: null, tekst: `${hv(h, x.eenheid)} niet opgeteld: andere eenheid binnen deze selectie` });
   }
+  for (const [pid, s] of som) {
+    const e = cur.find(x => x.product_id === pid), prod = producten.find(p => p.id === pid);
+    const basis = { product_id: pid, afgevinkt: false }, it = { naam: pnaam(pid), rij: null, tekst: '' };
+    if (!e || e.afgevinkt) { it.rij = { ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }; it.tekst = `nieuw: ${hv(s.hoeveelheid, s.eenheid)}`; }
+    else {
+      const eEen = e.eenheid || (prod && prod.eenheid) || 'st';
+      if (s.hoeveelheid == null) it.tekst = 'staat al op het lijstje';
+      else if (e.hoeveelheid == null) { it.rij = { ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }; it.tekst = `staat er al zonder aantal, wordt ${hv(s.hoeveelheid, s.eenheid)}`; }
+      else if (eEen === s.eenheid) {
+        const tot = Math.round((Number(e.hoeveelheid) + s.hoeveelheid) * 100) / 100;
+        it.rij = { ...basis, hoeveelheid: tot, eenheid: eEen }; it.tekst = `+ ${hv(s.hoeveelheid, s.eenheid)} bij ${hv(e.hoeveelheid, eEen)}, wordt ${hv(tot, eEen)}`;
+      } else it.tekst = `${hv(s.hoeveelheid, s.eenheid)} niet opgeteld: op het lijstje staat ${hv(e.hoeveelheid, eEen)} (andere eenheid)`;
+    }
+    items.push(it);
+  }
+  return items;
+}
+let plan = [];
+async function toonPlan(lijstIngr, titel) {
   const cur = await sb.from('lijst').select('*');
   if (cur.error) return alert('Het lijstje laden mislukt: ' + cur.error.message);
-  const rijen = []; let nieuw = 0, opgeteld = 0, alAanwezig = 0;
-  for (const [pid, s] of som) {
-    const e = cur.data.find(x => x.product_id === pid), prod = producten.find(p => p.id === pid);
-    const basis = { product_id: pid, afgevinkt: false };
-    if (!e || e.afgevinkt) { rijen.push({ ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }); nieuw++; continue; }
-    const eEen = e.eenheid || (prod && prod.eenheid) || 'st';
-    if (s.hoeveelheid == null) { alAanwezig++; continue; }
-    if (e.hoeveelheid == null) { rijen.push({ ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }); opgeteld++; continue; }
-    if (eEen === s.eenheid) { rijen.push({ ...basis, hoeveelheid: Math.round((Number(e.hoeveelheid) + s.hoeveelheid) * 100) / 100, eenheid: eEen }); opgeteld++; }
-    else conflicten.push(`${pnaam(pid)}: ${num(s.hoeveelheid)} ${s.eenheid} niet opgeteld, want op het lijstje staat ${num(e.hoeveelheid)} ${eEen}`);
-  }
-  if (rijen.length) {
+  plan = berekenPlan(lijstIngr, cur.data);
+  let el = document.getElementById('plan');
+  if (!el) { el = document.createElement('dialog'); el.id = 'plan'; document.body.appendChild(el); el.addEventListener('click', planKlik); }
+  el.innerHTML = `<strong>${esc(titel)}</strong><p class="sub">Vink aan wat op het boodschappenlijstje mag. Wat al op het lijstje staat, wordt opgeteld.</p>
+    <div class="planlijst">${plan.map((it, i) => `<label class="rij ${it.rij ? '' : 'uit'}"><input type="checkbox" data-p="${i}" ${it.rij ? 'checked' : 'disabled'}><span>${esc(it.naam)}<br><small class="sub">${esc(it.tekst)}</small></span></label>`).join('')}</div>
+    <div class="rijknop"><button data-planalles="1">Alles</button><button data-plangeen="1">Niets</button><button data-planannuleer="1">Annuleer</button><button class="ja" data-planok="1">Toevoegen</button></div>`;
+  el.showModal();
+}
+async function planKlik(e) {
+  const t = e.target.closest('button'); if (!t) return; const el = document.getElementById('plan'), d = t.dataset;
+  const boxen = () => [...el.querySelectorAll('input[data-p]:not([disabled])')];
+  if (d.planannuleer) return el.close();
+  if (d.planalles) return boxen().forEach(b => b.checked = true);
+  if (d.plangeen) return boxen().forEach(b => b.checked = false);
+  if (d.planok) {
+    const rijen = boxen().filter(b => b.checked).map(b => plan[Number(b.dataset.p)].rij);
+    if (!rijen.length) return el.close();
     const r = await sb.from('lijst').upsert(rijen, { onConflict: 'product_id' });
     if (r.error) return alert('Op het lijstje zetten mislukt: ' + r.error.message);
+    el.close(); alert(`${rijen.length} ${rijen.length === 1 ? 'product' : 'producten'} op het boodschappenlijstje gezet.`);
   }
-  alert(`Klaar: ${nieuw} nieuw op het lijstje, ${opgeteld} opgeteld bij wat er stond, ${alAanwezig} stonden er al.` + (conflicten.length ? '\n\nNiet opgeteld:\n• ' + conflicten.join('\n• ') : ''));
 }
 
 app.addEventListener('input', e => {
@@ -218,9 +245,8 @@ app.addEventListener('click', async e => {
   }
   if (d.weeklijst) {
     const lijst = menu.filter(m => m.recept_id).flatMap(m => ingr.filter(x => x.recept_id === m.recept_id));
-    if (!lijst.length) return;
-    if (!confirm('De ingrediënten van deze week op het boodschappenlijstje zetten? Doe dit maar één keer per week: een tweede keer worden de hoeveelheden opnieuw opgeteld.')) return;
-    return opLijst(lijst);
+    if (lijst.length) toonPlan(lijst, 'Ingrediënten van deze week');
+    return;
   }
   if (d.open) { open = open === d.open ? null : d.open; return vulRecepten(); }
   if (d.addingr) return addIngr(d.addingr);
@@ -231,8 +257,7 @@ app.addEventListener('click', async e => {
   }
   if (d.oplijst) {
     const r = recepten.find(x => x.id === d.oplijst);
-    if (!confirm(`De ingrediënten van “${r.titel}” op het boodschappenlijstje zetten? Een tweede keer tellen ze opnieuw mee.`)) return;
-    return opLijst(ingr.filter(x => x.recept_id === d.oplijst));
+    return toonPlan(ingr.filter(x => x.recept_id === d.oplijst), r.titel);
   }
   if (d.addrec) return voegToe();
   if (d.delrec) {
