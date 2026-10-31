@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Menu & recepten</title>
+<link rel="manifest" href="../manifest.json">
+<link rel="icon" href="../icon.svg">
+<link rel="apple-touch-icon" href="../icon-180.png">
+<meta name="theme-color" content="#ff6b35">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../gedeeld/stijl.css">
+<style>
+.weeknav{display:flex;align-items:center;gap:8px;margin-bottom:8px}.weeknav div{flex:1;text-align:center}
+.dn{display:flex;flex-direction:column;min-width:96px}.dn small{color:var(--soft)}
+.nu{background:#fff7d6;border-radius:12px}
+.vorm{display:grid;gap:8px;margin-top:10px}
+.gerecht a,.rij a{text-decoration:none}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="../config.js"></script>
+<script src="../gedeeld/basis.js"></script>
+<script>
+const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
+const DAGEN = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
+let tab = 'menu', recepten = [], menu = [], bewerk = null, filter = '';
+const maandagVan = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
+const plus = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const kort = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
+let week = maandagVan(new Date());
+function veilig(l) {
+  if (!l) return null;
+  try { const u = new URL(l.includes('://') ? l : 'https://' + l); return /^https?:$/.test(u.protocol) ? u.href : null; } catch (e) { return null; }
+}
+const lnk = (u, t) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`;
+
+B.start('🍽️ Menu & recepten', laad, { app: 'menu' });
+window.addEventListener('focus', () => { if (B.sessie && bewerk === null) laad(); });
+
+async function laadMenu() {
+  const r = await sb.from('menu_dagen').select('*').eq('week', B.iso(week));
+  if (r.error) throw r.error; menu = r.data;
+}
+async function laad() {
+  if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }
+  try {
+    const rec = await sb.from('recepten').select('*').order('titel');
+    if (rec.error) throw rec.error; recepten = rec.data; await laadMenu();
+  } catch (e) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(e.message)}. Is menu.sql uitgevoerd?</p>`; return; }
+  render();
+}
+
+function render() {
+  const tabs = `<div class="tabs"><button data-tab="menu" class="${tab === 'menu' ? 'act' : ''}">🍽️ Weekmenu</button><button data-tab="recepten" class="${tab === 'recepten' ? 'act' : ''}">📖 Recepten</button></div>`;
+  app.innerHTML = tabs + (tab === 'menu' ? menuHtml() : receptenHtml());
+  if (tab === 'recepten') vulRecepten();
+}
+
+function menuHtml() {
+  const nu = B.iso(new Date());
+  const nav = `<div class="weeknav"><button data-week="-1" aria-label="Vorige week">◀</button><div><b>Week van ${kort(week)} tot ${kort(plus(week, 6))}</b></div><button data-week="1" aria-label="Volgende week">▶</button></div>
+    <div class="rijknop" style="justify-content:center;margin:0 0 10px"><button data-week="0">Deze week</button></div>`;
+  const rijen = DAGEN.map((naam, i) => {
+    const d = plus(week, i), m = menu.find(x => x.dag === i) || {}, r = recepten.find(x => x.id === m.recept_id), isNu = B.iso(d) === nu;
+    if (bewerk === i) {
+      return `<div class="rij ${isNu ? 'nu' : ''}" style="display:block"><strong>${naam}</strong> <small class="sub">${kort(d)}</small>
+        <div class="vorm"><input id="mtekst" type="text" maxlength="300" placeholder="Wat eten we?" value="${esc(m.tekst || '')}">
+        <input id="mlink" type="text" inputmode="url" maxlength="1000" placeholder="Link (optioneel)" value="${esc(m.link || '')}">
+        <select id="mrecept"><option value="">Of kies uit onze recepten…</option>${recepten.map(x => `<option value="${x.id}" ${x.id === m.recept_id ? 'selected' : ''}>${esc(x.titel)}</option>`).join('')}</select>
+        <div class="rijknop"><button data-annuleer="1">Annuleer</button><button class="ja" data-bewaar="${i}">Bewaar</button></div></div></div>`;
+    }
+    const delen = [];
+    if (m.tekst) delen.push(esc(m.tekst));
+    if (r) delen.push(`📖 ${esc(r.titel)}${veilig(r.link) ? ' ' + lnk(veilig(r.link), '🔗') : ''}`);
+    if (veilig(m.link)) delen.push(lnk(veilig(m.link), '🔗 link'));
+    return `<div class="rij ${isNu ? 'nu' : ''}"><div class="dn"><b>${naam}</b><small>${kort(d)}</small></div><span class="gerecht">${delen.join('<br>') || '<span class="sub">Nog niets gepland</span>'}</span><button data-bewerk="${i}" aria-label="Bewerk ${naam}">✎</button></div>`;
+  }).join('');
+  return nav + `<div class="kaart">${rijen}</div>`;
+}
+
+function receptenHtml() {
+  return `<div class="kaart"><strong>Recept toevoegen</strong><div class="vorm">
+      <input id="rtitel" type="text" maxlength="200" placeholder="Naam van het gerecht" autocomplete="off">
+      <input id="rlink" type="text" inputmode="url" maxlength="1000" placeholder="Link naar het recept (optioneel)" autocomplete="off">
+      <input id="rnotitie" type="text" maxlength="500" placeholder="Notitie (optioneel, bv. “met de kinderen gemaakt”)" autocomplete="off">
+      <button class="ja" data-addrec="1">Toevoegen</button></div></div>
+    <div class="kaart"><input id="rzoek" type="search" placeholder="Zoek in recepten" value="${esc(filter)}" autocomplete="off"><div id="rlijst"></div></div>`;
+}
+function vulRecepten() {
+  const el = document.getElementById('rlijst'); if (!el) return;
+  const me = B.sessie.user.id, q = filter.trim().toLowerCase();
+  const lijst = recepten.filter(r => !q || (r.titel + ' ' + (r.notitie || '')).toLowerCase().includes(q));
+  el.innerHTML = lijst.map(r => `<div class="rij"><span>${esc(r.titel)} ${veilig(r.link) ? lnk(veilig(r.link), '🔗') : ''}${r.notitie ? ` <small class="sub">· ${esc(r.notitie)}</small>` : ''}</span>${B.isOuder || r.toegevoegd_door === me ? `<button data-delrec="${r.id}" aria-label="Verwijder ${esc(r.titel)}">✕</button>` : ''}</div>`).join('')
+    || `<p class="sub">${recepten.length ? 'Geen recepten gevonden.' : 'Nog geen recepten. Voeg er hierboven een toe.'}</p>`;
+}
+
+async function voegToe() {
+  const titel = document.getElementById('rtitel').value.trim(), raw = document.getElementById('rlink').value.trim(), notitie = document.getElementById('rnotitie').value.trim();
+  if (!titel) return;
+  const link = raw ? veilig(raw) : null;
+  if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
+  const { error } = await sb.from('recepten').insert({ titel, link, notitie: notitie || null });
+  if (error) return alert('Opslaan mislukt: ' + error.message);
+  await laad();
+}
+
+app.addEventListener('input', e => { if (e.target.id === 'rzoek') { filter = e.target.value; vulRecepten(); } });
+app.addEventListener('keydown', e => { if (e.key === 'Enter' && ['rtitel', 'rlink', 'rnotitie'].includes(e.target.id)) { e.preventDefault(); voegToe(); } });
+app.addEventListener('click', async e => {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
+  if (d.tab) { tab = d.tab; bewerk = null; return render(); }
+  if (d.week !== undefined) {
+    week = d.week === '0' ? maandagVan(new Date()) : plus(week, 7 * Number(d.week)); bewerk = null;
+    try { await laadMenu(); } catch (x) { return alert('Laden mislukt: ' + x.message); }
+    return render();
+  }
+  if (d.bewerk !== undefined) { bewerk = Number(d.bewerk); return render(); }
+  if (d.annuleer) { bewerk = null; return render(); }
+  if (d.bewaar !== undefined) {
+    const dag = Number(d.bewaar), tekst = document.getElementById('mtekst').value.trim() || null, raw = document.getElementById('mlink').value.trim();
+    const recept = document.getElementById('mrecept').value || null, link = raw ? veilig(raw) : null;
+    if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
+    const sleutel = B.iso(week);
+    const r = (!tekst && !link && !recept)
+      ? await sb.from('menu_dagen').delete().eq('week', sleutel).eq('dag', dag)
+      : await sb.from('menu_dagen').upsert({ week: sleutel, dag, tekst, link, recept_id: recept }, { onConflict: 'week,dag' });
+    if (r.error) return alert('Opslaan mislukt: ' + r.error.message);
+    bewerk = null;
+    try { await laadMenu(); } catch (x) { return alert('Laden mislukt: ' + x.message); }
+    return render();
+  }
+  if (d.addrec) return voegToe();
+  if (d.delrec) {
+    if (!confirm('Dit recept verwijderen?')) return;
+    const { error } = await sb.from('recepten').delete().eq('id', d.delrec);
+    if (error) return alert('Verwijderen mislukt: ' + error.message);
+    await laad();
+  }
+});
+</script>
+</body>
+</html>

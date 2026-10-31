@@ -1,0 +1,4 @@
+.env.local
+_site/
+.env.local.voorbeeld
+__pycache__/lokaal.cpython-312.pyc
