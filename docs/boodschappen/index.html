@@ -17,6 +17,8 @@
 .nieuw select{margin:8px 0}
 .orde .rij button{padding:6px 12px}
 details{border-bottom:1px solid #eee;padding:8px 0}summary{cursor:pointer;font-weight:500}
+.stap{display:flex;align-items:center;gap:6px}.stap b{min-width:3.8rem;text-align:center;font-weight:500}.stap button{width:38px;height:38px;padding:0;font-size:1.2rem}
+.stap button[disabled]{opacity:.35}
 .hv{display:flex;gap:8px;margin-top:8px}.hv input{flex:2}.hv select{flex:1}
 .zoekrij{position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:2}
 </style>
@@ -28,6 +30,7 @@ details{border-bottom:1px solid #eee;padding:8px 0}summary{cursor:pointer;font-w
 <script src="../gedeeld/basis.js"></script>
 <script>
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
+const STAP = { st: 1, g: 50, ml: 50 };   // hoeveel + en − per tik verandert, per eenheid
 let cats = [], prods = [], lijst = [], winkels = [], volg = [], tab = 'lijst', beheerWinkel = null, kanaal = null, nieuweCat = null;
 let winkel = ''; try { winkel = localStorage.getItem('winkel') || ''; } catch (e) {}
 
@@ -50,7 +53,7 @@ function render() {
   const tabs = [['lijst', '📝 Lijst'], ['winkelen', '🛍️ Winkelen']].concat(B.isOuder ? [['beheer', '⚙️ Beheer']] : []);
   if (!tabs.some(t => t[0] === tab)) tab = 'lijst';
   let paneel = '';
-  if (tab === 'lijst') paneel = `<div class="zoekrij"><input id="zoek" type="search" placeholder="Wat moet er op het lijstje?" autocomplete="off"><div class="hv"><input id="hv" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="eenh" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option></select></div></div><div id="sugg"></div><div id="vak"></div>`;
+  if (tab === 'lijst') paneel = `<div class="zoekrij"><input id="zoek" type="search" placeholder="Wat moet er op het lijstje?" autocomplete="off"><div class="hv"><input id="hv" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="eenh" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option><option value="ml">ml</option></select></div></div><div id="sugg"></div><div id="vak"></div>`;
   else if (tab === 'winkelen') paneel = `<select id="winkelkeuze" aria-label="Winkel"><option value="">Standaardvolgorde</option>${winkels.map(w => `<option value="${w.id}" ${w.id === winkel ? 'selected' : ''}>${esc(w.naam)}</option>`).join('')}</select><div id="vak"></div>`;
   else paneel = '<div id="vak"></div>';
   app.innerHTML = `<div class="tabs">${tabs.map(t => `<button data-tab="${t[0]}" class="${t[0] === tab ? 'act' : ''}">${t[1]}</button>`).join('')}</div>${paneel}`;
@@ -76,7 +79,10 @@ const hv = x => x.l.hoeveelheid ? ` <small class="sub">· ${esc(String(+x.l.hoev
 function vul() {
   const vak = document.getElementById('vak'); if (!vak) return;
   if (tab === 'lijst') {
-    vak.innerHTML = groepen(cats, x => `<div class="rij ${x.l.afgevinkt ? 'af' : ''}"><span>${esc(x.p.naam)}${hv(x)}</span><button data-del="${x.l.id}" aria-label="Verwijder ${esc(x.p.naam)}">✕</button></div>`);
+    vak.innerHTML = groepen(cats, x => {
+      const eu = x.l.eenheid || x.p.eenheid || 'st', n = x.l.hoeveelheid == null ? null : Number(x.l.hoeveelheid);
+      return `<div class="rij ${x.l.afgevinkt ? 'af' : ''}"><span>${esc(x.p.naam)}</span><div class="stap"><button data-min="${x.l.id}" aria-label="Minder ${esc(x.p.naam)}" ${n == null ? 'disabled' : ''}>−</button><b>${n == null ? '–' : esc(String(+n.toFixed(2))) + ' ' + esc(eu)}</b><button data-plus="${x.l.id}" aria-label="Meer ${esc(x.p.naam)}">+</button></div><button data-del="${x.l.id}" aria-label="Verwijder ${esc(x.p.naam)}">✕</button></div>`;
+    });
     vulSugg();
   } else if (tab === 'winkelen') {
     vak.innerHTML = groepen(volgordeVoor(winkel), x => `<label class="rij ${x.l.afgevinkt ? 'af' : ''}"><input type="checkbox" data-vink="${x.l.id}" ${x.l.afgevinkt ? 'checked' : ''}><span>${esc(x.p.naam)}${hv(x)}</span></label>`)
@@ -134,6 +140,17 @@ function vulBeheer(vak) {
     <div style="display:flex;gap:8px;margin-top:14px"><input id="nwcatnaam" type="text" placeholder="Nieuwe categorie"><button data-addcat="1" class="ja">+</button></div></div>`;
 }
 
+async function pas(id, r) {
+  const l = lijst.find(x => x.id === id); if (!l) return;
+  const p = prods.find(x => x.id === l.product_id), eu = l.eenheid || (p && p.eenheid) || 'st', stap = STAP[eu] || 1;
+  let n = l.hoeveelheid == null ? null : Number(l.hoeveelheid);
+  if (r > 0) n = Math.round(((n || 0) + stap) * 100) / 100;
+  else { if (n == null) return; n = n - stap; n = n > 0 ? Math.round(n * 100) / 100 : null; }
+  const oud = { hoeveelheid: l.hoeveelheid, eenheid: l.eenheid };
+  l.hoeveelheid = n; l.eenheid = eu; vul();
+  const { error } = await sb.from('lijst').update({ hoeveelheid: n, eenheid: eu }).eq('id', id);
+  if (error) { l.hoeveelheid = oud.hoeveelheid; l.eenheid = oud.eenheid; vul(); alert('Aanpassen mislukt: ' + error.message); }
+}
 async function schrijf(q, nodig = true) {
   const { error } = await q; if (error) { alert('Mislukt: ' + error.message); return false; }
   if (nodig) await laad(); return true;
@@ -148,6 +165,7 @@ async function beweeg(catId, d) {
 app.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
   if (d.tab) { tab = d.tab; beheerWinkel = null; return render(); }
+  if (d.plus || d.min) return pas(d.plus || d.min, d.plus ? 1 : -1);
   if (d.add) return zetOpLijst(d.add);
   if (d.nieuw) return nieuwProduct();
   if (d.del) { await schrijf(sb.from('lijst').delete().eq('id', d.del)); return; }
