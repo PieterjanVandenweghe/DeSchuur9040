@@ -1,6 +1,6 @@
 window.CONFIG = {
-  SUPABASE_URL: "https://vbsubcrpifpdtjrokjtu.supabase.co",
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZic3ViY3JwaWZwZHRqcm9ranR1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwMjM0MTQsImV4cCI6MjEwODU5OTQxNH0.6xOs2g2K4V8zBdCC4MD_s_3JrhUAYOKNFkQr08LNa8w",
+  SUPABASE_URL: "__SUPABASE_URL__",
+  SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
 
   LOGIN_DOMEIN: "deschuur9040.com",
   BASIS_MINUTEN: 60,               // reserve; per kind in tabel 'kinderen'
