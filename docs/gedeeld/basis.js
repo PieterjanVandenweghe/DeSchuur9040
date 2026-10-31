@@ -39,7 +39,7 @@
 
   B.start = (titel, cb, opties = {}) => {
     document.body.insertAdjacentHTML('afterbegin',
-      `<header class="top">${opties.thuis ? '' : '<a class="terug" href="../" aria-label="Naar thuis">🏠</a>'}<h1>${B.esc(titel)}</h1><button id="loginknop">Inloggen</button></header>` + DLG);
+      `<header class="top">${opties.thuis ? '<img class="logo" src="icon.svg" alt="" width="36" height="36">' : '<a class="terug" href="../" aria-label="Naar thuis"><img class="logo" src="../icon.svg" alt="" width="36" height="36"></a>'}<h1>${B.esc(titel)}</h1><button id="loginknop">Inloggen</button></header>` + DLG);
     const run = () => {
       if (opties.app && B.sessie && B.verborgen.has(opties.app)) {
         const m = document.getElementById('app'); if (m) m.innerHTML = '<p class="fout">Deze app is niet beschikbaar voor jou.</p>';
