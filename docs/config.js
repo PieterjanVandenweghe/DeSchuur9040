@@ -1,3 +1,5 @@
+// De twee Supabase-waarden worden bij het uitrollen ingevuld (zie .github/workflows/deploy.yml).
+// Zet hier nooit echte sleutels in. Voor lokaal testen: python lokaal.py
 window.CONFIG = {
   SUPABASE_URL: "__SUPABASE_URL__",
   SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
