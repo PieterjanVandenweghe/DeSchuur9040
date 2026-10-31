@@ -15,6 +15,7 @@
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.chips button.act{background:var(--joker);color:#fff}
 .vorm{display:grid;gap:8px}.vorm label{font-size:.9rem;color:var(--soft)}
 .rij a{text-decoration:none}.claim{font-size:.9rem;color:var(--joker);font-weight:500}
+.ouderlijn{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:2px 4px 10px;border-bottom:1px solid #eee;font-size:.9rem;color:var(--soft)}.ouderlijn button{padding:4px 10px;font-size:.85rem}
 .delen code{display:block;word-break:break-all;background:var(--bg);padding:8px;border-radius:10px;font-size:.8rem;margin:6px 0}
 </style>
 </head>
@@ -25,7 +26,7 @@
 <script src="../gedeeld/basis.js"></script>
 <script>
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
-let personen = [], items = [], claims = [], delen = [], gekozen = null, voorWie = null, me = null;
+let personen = [], items = [], claims = [], delen = [], ouderData = [], gekozen = null, voorWie = null, me = null;
 
 B.start('🎁 Cadeautjes', laad, { app: 'cadeautjes' });
 window.addEventListener('focus', () => { if (B.sessie) laad(); });
@@ -39,6 +40,7 @@ async function laad() {
   const fout = [i, c, d].find(r => r.error);
   if (fout) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(fout.error.message)}. Is cadeautjes.sql uitgevoerd?</p>`; return; }
   items = i.data.sort((a, b) => a.aangemaakt < b.aangemaakt ? -1 : 1); claims = c.data; delen = d.data;
+  const od = await sb.from('cadeau_ouders').select('*'); ouderData = od.error ? [] : od.data;
   if (!gekozen || !personen.some(p => p.uid === gekozen)) gekozen = me;
   if (!voorWie || !personen.some(p => p.uid === voorWie)) voorWie = me;
   render();
@@ -50,6 +52,12 @@ function veiligeLink(l) {
   if (!l) return null;
   try { const u = new URL(l.includes('://') ? l : 'https://' + l); return /^https?:$/.test(u.protocol) ? u.href : null; } catch (e) { return null; }
 }
+const euro = n => '€' + Number(n).toLocaleString('nl-BE', { maximumFractionDigits: 2 });
+const prijsTekst = (v, t) => {
+  const x = v == null ? null : Number(v), y = t == null ? null : Number(t);
+  const s = x != null && y != null ? (x === y ? '± ' + euro(x) : euro(x) + '–' + euro(y).slice(1)) : y != null ? 'tot ' + euro(y) : x != null ? 'vanaf ' + euro(x) : '';
+  return s ? ` <small class="sub">· ${esc(s)}</small>` : '';
+};
 const deelUrl = t => new URL('deel.html', location.href).href.split('#')[0] + '#' + t;
 
 function render() {
@@ -64,11 +72,14 @@ function render() {
       if (c) status = `<span class="claim">🎁 ${esc(c.door_naam)}</span>` + (c.door_user === me || B.isOuder ? ` <button data-unclaim="${i.id}">Toch niet</button>` : '');
       else status = `<button class="ja" data-claim="${i.id}">Ik koop dit</button>`;
     }
-    return `<div class="rij"><span>${esc(i.titel)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer" aria-label="Open link">🔗</a>` : ''}</span>${status}${mag ? `<button data-del="${i.id}" aria-label="Verwijder">✕</button>` : ''}</div>`;
+    const od = ouderData.find(x => x.item_id === i.id) || {};
+    const extra = B.isOuder ? `<div class="ouderlijn"><label><input type="checkbox" data-gedeeld="${i.id}" ${od.gedeeld ? 'checked' : ''}> Delen via link</label>${eigen ? '' : `<button data-label="${i.id}">${od.gevraagd_aan ? '📨 ' + esc(od.gevraagd_aan) + ' ✎' : '📨 Gevraagd aan…'}</button>`}</div>` : '';
+    return `<div class="rij"><span>${esc(i.titel)}${prijsTekst(i.prijs_van, i.prijs_tot)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer" aria-label="Open link">🔗</a>` : ''}</span>${status}${mag ? `<button data-del="${i.id}" aria-label="Verwijder">✕</button>` : ''}</div>${extra}`;
   }).join('') || '<p class="sub">Nog niets op dit lijstje.</p>';
+  const nGedeeld = lijst.filter(i => ouderData.some(o => o.item_id === i.id && o.gedeeld)).length;
   const links = delen.filter(d => d.voor_user === gekozen);
   const deelBlok = B.isOuder ? `<div class="kaart delen"><strong>Delen met mensen zonder account</strong>
-    <p class="sub">Wie de link heeft, kan het lijstje van ${esc(naamVan(gekozen))} zien en aanduiden wat hij of zij koopt. ${eigen ? '' : `${esc(naamVan(gekozen))} mag deze link zelf niet openen, anders is de verrassing weg.`}</p>
+    <p class="sub">Wie de link heeft, ziet alleen de cadeautjes van ${esc(naamVan(gekozen))} waarbij “Delen via link” is aangevinkt (${nGedeeld} van ${lijst.length}) en kan aanduiden wat hij of zij koopt. ${eigen ? '' : `${esc(naamVan(gekozen))} mag deze link zelf niet openen, anders is de verrassing weg.`}</p>
     ${links.map(d => `<code>${esc(deelUrl(d.token))}</code><div class="rijknop" style="justify-content:flex-start"><button data-kopie="${d.token}">Kopieer</button><button class="nee" data-intrek="${d.id}">Intrekken</button></div>`).join('')}
     <div class="rijknop" style="justify-content:flex-start"><button class="ja" data-nieuwdeel="1">Nieuwe deellink maken</button></div></div>` : '';
   app.innerHTML = `<div class="chips">${chips}</div>
@@ -76,13 +87,22 @@ function render() {
       <label for="voor">Voor wie?</label><select id="voor">${personen.map(p => `<option value="${p.uid}" ${p.uid === voorWie ? 'selected' : ''}>${esc(p.emoji)} ${esc(p.naam)}${p.uid === me ? ' (ik)' : ''}</option>`).join('')}</select>
       <input id="titel" type="text" maxlength="200" placeholder="Wat is het cadeautje?" autocomplete="off">
       <input id="link" type="text" inputmode="url" maxlength="1000" placeholder="Link (optioneel)" autocomplete="off">
+      <div style="display:flex;gap:8px"><input id="pvan" type="number" inputmode="decimal" min="0" step="any" placeholder="Prijs vanaf € (optioneel)" aria-label="Prijs vanaf"><input id="ptot" type="number" inputmode="decimal" min="0" step="any" placeholder="tot € (optioneel)" aria-label="Prijs tot"></div>
+      ${B.isOuder ? '<label class="sub"><input type="checkbox" id="metdelen"> Meteen delen via de deellink</label>' : ''}
       <button class="ja" data-toevoegen="1">Toevoegen</button></div></div>
     <div class="kaart"><strong>${eigen ? 'Mijn lijstje' : 'Lijstje van ' + esc(naamVan(gekozen))}</strong>${eigen ? '<p class="sub">Wie wat koopt, zie je niet. Dat blijft een verrassing 🎉</p>' : ''}${rijen}</div>${deelBlok}`;
 }
 
 async function doe(q) { const { error } = await q; if (error) { alert('Mislukt: ' + error.message); return false; } await laad(); return true; }
 
-app.addEventListener('change', e => { if (e.target.id === 'voor') voorWie = e.target.value; });
+app.addEventListener('change', async e => {
+  if (e.target.id === 'voor') voorWie = e.target.value;
+  if (e.target.dataset.gedeeld) {
+    const { error } = await sb.from('cadeau_ouders').upsert({ item_id: e.target.dataset.gedeeld, gedeeld: e.target.checked }, { onConflict: 'item_id' });
+    if (error) { alert('Mislukt: ' + error.message + '. Is cadeautjes-ouders.sql uitgevoerd?'); e.target.checked = !e.target.checked; return; }
+    await laad();
+  }
+});
 app.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.target.id === 'titel' || e.target.id === 'link')) { e.preventDefault(); toevoegen(); } });
 async function toevoegen() {
   const titel = document.getElementById('titel').value.trim(), raw = document.getElementById('link').value.trim();
@@ -90,7 +110,14 @@ async function toevoegen() {
   const link = raw ? veiligeLink(raw) : null;
   if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
   voorWie = document.getElementById('voor').value;
-  if (await doe(sb.from('cadeau_items').insert({ voor_user: voorWie, titel, link }))) gekozen = voorWie, render();
+  const num = id => { const v = parseFloat(String(document.getElementById(id).value).replace(',', '.')); return v >= 0 ? v : null; };
+  const prijs_van = num('pvan'), prijs_tot = num('ptot');
+  if (prijs_van !== null && prijs_tot !== null && prijs_tot < prijs_van) return alert('De hoogste prijs moet minstens gelijk zijn aan de laagste.');
+  const delen = B.isOuder && document.getElementById('metdelen') && document.getElementById('metdelen').checked;
+  const { data, error } = await sb.from('cadeau_items').insert({ voor_user: voorWie, titel, link, prijs_van, prijs_tot }).select().single();
+  if (error) return alert('Mislukt: ' + error.message);
+  if (delen) { const r = await sb.from('cadeau_ouders').upsert({ item_id: data.id, gedeeld: true }, { onConflict: 'item_id' }); if (r.error) alert('Delen instellen mislukt: ' + r.error.message); }
+  gekozen = voorWie; await laad();
 }
 app.addEventListener('click', async e => {
   const t = e.target.closest('button'); if (!t) return; const d = t.dataset;
@@ -99,6 +126,12 @@ app.addEventListener('click', async e => {
   if (d.del) { if (confirm('Dit cadeautje verwijderen?')) await doe(sb.from('cadeau_items').delete().eq('id', d.del)); return; }
   if (d.claim) return doe(sb.from('cadeau_claims').insert({ item_id: d.claim, door_user: me, door_naam: mijnNaam() }));
   if (d.unclaim) return doe(sb.from('cadeau_claims').delete().eq('item_id', d.unclaim));
+  if (d.label) {
+    const huidig = (ouderData.find(x => x.item_id === d.label) || {}).gevraagd_aan || '';
+    const v = prompt('Aan wie hebben we dit gevraagd? (leeg laten om te wissen)', huidig);
+    if (v === null) return;
+    await doe(sb.from('cadeau_ouders').upsert({ item_id: d.label, gevraagd_aan: v.trim().slice(0, 100) || null }, { onConflict: 'item_id' })); return;
+  }
   if (d.nieuwdeel) return doe(sb.from('cadeau_delen').insert({ voor_user: gekozen }));
   if (d.intrek) { if (confirm('Deellink intrekken? Wie hem heeft, kan er niet meer mee kijken.')) await doe(sb.from('cadeau_delen').delete().eq('id', d.intrek)); return; }
   if (d.kopie) { const u = deelUrl(d.kopie); try { await navigator.clipboard.writeText(u); t.textContent = 'Gekopieerd ✓'; } catch (x) { prompt('Kopieer deze link:', u); } }

@@ -24,6 +24,12 @@ const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;'
 const token = location.hash.slice(1), app = document.getElementById('app');
 let naam = ''; try { naam = localStorage.getItem('deelnaam') || ''; } catch (e) {}
 let lijst = [], info = null;
+const euro = n => '€' + Number(n).toLocaleString('nl-BE', { maximumFractionDigits: 2 });
+const prijsTekst = (v, t) => {
+  const x = v == null ? null : Number(v), y = t == null ? null : Number(t);
+  const s = x != null && y != null ? (x === y ? '± ' + euro(x) : euro(x) + '–' + euro(y).slice(1)) : y != null ? 'tot ' + euro(y) : x != null ? 'vanaf ' + euro(x) : '';
+  return s ? ` <small class="sub">· ${esc(s)}</small>` : '';
+};
 const veilig = l => { if (!l) return null; try { const u = new URL(l); return /^https?:$/.test(u.protocol) ? u.href : null; } catch (e) { return null; } };
 
 async function laad() {
@@ -37,7 +43,7 @@ function render() {
   const rijen = lijst.map(i => {
     const l = veilig(i.link), van = i.door_naam, mijn = van && naam && van.toLowerCase() === naam.trim().toLowerCase();
     const status = van ? `<span class="claim">🎁 ${esc(van)}</span>${mijn ? ` <button data-unclaim="${i.id}">Toch niet</button>` : ''}` : `<button class="ja" data-claim="${i.id}">Ik koop dit</button>`;
-    return `<div class="rij"><span>${esc(i.titel)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">🔗</a>` : ''}</span>${status}</div>`;
+    return `<div class="rij"><span>${esc(i.titel)}${prijsTekst(i.prijs_van, i.prijs_tot)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">🔗</a>` : ''}</span>${status}</div>`;
   }).join('') || '<p class="sub">Er staat nog niets op dit lijstje.</p>';
   app.innerHTML = `<div class="kaart"><label for="naam" class="sub">Jouw naam (zodat anderen zien dat jij iets koopt)</label>
     <input id="naam" type="text" maxlength="40" value="${esc(naam)}" placeholder="Bv. Oma Rita" autocomplete="name"></div>

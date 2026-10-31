@@ -8,6 +8,9 @@ create table cadeau_items (
   voor_user uuid not null references auth.users(id) on delete cascade,
   titel text not null check (char_length(titel) between 1 and 200),
   link text check (link is null or char_length(link) <= 1000),
+  prijs_van numeric check (prijs_van >= 0),
+  prijs_tot numeric check (prijs_tot >= 0),
+  check (prijs_van is null or prijs_tot is null or prijs_tot >= prijs_van),
   toegevoegd_door uuid not null default auth.uid() references auth.users(id) on delete cascade,
   aangemaakt timestamptz not null default now()
 );
@@ -52,8 +55,8 @@ returns table (naam text, emoji text) language sql security definer set search_p
   where d.token = p_token $$;
 
 create or replace function cadeau_deel_lijst(p_token text)
-returns table (id uuid, titel text, link text, door_naam text) language sql security definer set search_path = public stable as $$
-  select i.id, i.titel, i.link, c.door_naam
+returns table (id uuid, titel text, link text, prijs_van numeric, prijs_tot numeric, door_naam text) language sql security definer set search_path = public stable as $$
+  select i.id, i.titel, i.link, i.prijs_van, i.prijs_tot, c.door_naam
   from cadeau_delen d join cadeau_items i on i.voor_user = d.voor_user left join cadeau_claims c on c.item_id = i.id
   where d.token = p_token order by i.aangemaakt $$;
 

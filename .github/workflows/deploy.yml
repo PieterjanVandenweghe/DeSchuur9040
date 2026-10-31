@@ -1,0 +1,46 @@
+name: Site uitrollen
+
+# Vult de Supabase-gegevens in config.js in vanuit de GitHub-secrets en zet de site online.
+# De gegevens staan zo niet in de repo of de Git-geschiedenis.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configuratie invullen
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "De secrets SUPABASE_URL en SUPABASE_ANON_KEY ontbreken (Settings > Secrets and variables > Actions)."; exit 1
+          fi
+          mkdir _site
+          cp -r docs/. _site/
+          sed -i "s|__SUPABASE_URL__|$SUPABASE_URL|g; s|__SUPABASE_ANON_KEY__|$SUPABASE_ANON_KEY|g" _site/config.js
+          if grep -q "__SUPABASE" _site/config.js; then echo "Plaatsaanduiding niet vervangen."; exit 1; fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
