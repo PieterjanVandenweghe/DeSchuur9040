@@ -4,7 +4,7 @@ window.CONFIG = {
   SUPABASE_URL: "__SUPABASE_URL__",
   SUPABASE_ANON_KEY: "__SUPABASE_ANON_KEY__",
 
-  LOGIN_DOMEIN: "gezin.example.com", // inlognaam "emma" = emma@gezin.example.com
+  LOGIN_DOMEIN: "deschuur9040.com", // inlognaam "emma" = emma@gezin.example.com
 
   BASIS_MINUTEN: 60,               // reserve; per kind in tabel 'kinderen'
   STRAF_MINUTEN: 15,               // reserve; per kind in tabel 'kinderen'
