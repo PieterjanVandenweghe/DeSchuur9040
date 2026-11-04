@@ -18,6 +18,7 @@
 .naam{font-size:1.4rem;font-weight:700}
 .chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}.chip{background:#efeaff;padding:8px 12px}
 .teller{display:flex;align-items:center;gap:14px}.teller b{font-size:2rem;min-width:2.5rem;text-align:center}.teller button{width:52px;font-size:1.5rem}
+.ov{display:block}.ov summary{cursor:pointer;list-style:none}.ov summary::-webkit-details-marker{display:none}.ov summary .naam::after{content:' ▸'}.ov[open] summary .naam::after{content:' ▾'}
 .tabelvak{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:480px}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eee;white-space:nowrap}th{color:var(--soft);font-weight:500;font-size:.9rem}
 tr.leeg td{color:#b5afcf}td.slecht{background:#ffe3ec;font-weight:500}td.let{background:#fff1d0}
@@ -51,6 +52,14 @@ const zichtbaar = () => B.isOuder ? B.kinderen : B.kinderen.filter(k => B.mijnKi
 const emo = v => v.hardheid ? SCHAAL[v.hardheid - 1].e : '❔';
 const uur = v => new Date(v.aangemaakt).toLocaleTimeString('nl-BE', { hour: '2-digit', minute: '2-digit' });
 
+// Welke overzichten open staan, per toestel onthouden (standaard ingeklapt)
+let open = new Set(); try { open = new Set(JSON.parse(localStorage.getItem('toilet-open') || '[]')); } catch {}
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!d.dataset || !d.dataset.ov) return;
+  d.open ? open.add(d.dataset.ov) : open.delete(d.dataset.ov);
+  try { localStorage.setItem('toilet-open', JSON.stringify([...open])); } catch {}
+}, true);
+
 function overzicht(k) {
   const dag = Object.fromEntries(rijen.filter(r => r.kind_id === k.id).map(r => [r.datum, r]));
   const bez = {}; bezoeken.filter(v => v.kind_id === k.id).forEach(v => (bez[v.datum] = bez[v.datum] || []).push(v));
@@ -65,15 +74,15 @@ function overzicht(k) {
     if (!dag[d] && !bez[d]) return `<tr class="leeg"><td>${dagTekst(d)}</td><td colspan="4">–</td></tr>`;
     const r = dag[d] || {}, v = bez[d] || [];
     return `<tr><td>${dagTekst(d)}</td><td>${v.length}×</td><td>${v.length ? v.map(x => `<span title="${x.hardheid ? SCHAAL[x.hardheid - 1].t : 'weet niet'}">${emo(x)}</span>`).join(' ') : '–'}</td>
-      <td class="${r.buikpijn ? 'slecht' : ''}">${r.buikpijn ? '🤕 Ja' : 'Nee'}</td><td class="${r.zakjes ? '' : 'let'}">${r.zakjes ? '✅ Ja' : '✖️ Nee'}</td></tr>`;
+      <td class="${r.buikpijn ? 'slecht' : ''}">${r.buikpijn ? '🤕 Ja' : r.buikpijn === false ? 'Nee' : '–'}</td><td class="${r.zakjes === false ? 'let' : ''}">${r.zakjes ? '✅ Ja' : r.zakjes === false ? '✖️ Nee' : '–'}</td></tr>`;
   }).join('');
-  return `<section class="kaart"><div class="naam">${esc(k.emoji)} ${esc(k.naam)} · overzicht</div><p class="sub">${samen}</p>
-    <div class="tabelvak"><table><thead><tr><th>Datum</th><th>Keer</th><th>Hoe was elke keer</th><th>Buikpijn</th><th>Zakjes</th></tr></thead><tbody>${body}</tbody></table></div></section>`;
+  return `<details class="kaart ov" data-ov="${k.id}" ${open.has(k.id) ? 'open' : ''}><summary><span class="naam">${esc(k.emoji)} ${esc(k.naam)} · overzicht</span><p class="sub">${samen}</p></summary>
+    <div class="tabelvak"><table><thead><tr><th>Datum</th><th>Keer</th><th>Hoe was elke keer</th><th>Buikpijn</th><th>Zakjes</th></tr></thead><tbody>${body}</tbody></table></div></details>`;
 }
 
 function render() {
   const kaarten = zichtbaar().map(k => {
-    const dagrij = rijen.find(r => r.kind_id === k.id && r.datum === datum) || { buikpijn: false, zakjes: false, nieuw: true };
+    const dagrij = rijen.find(r => r.kind_id === k.id && r.datum === datum) || { buikpijn: null, zakjes: null };
     const vandaag = bezoeken.filter(v => v.kind_id === k.id && v.datum === datum);
     const week = [-6, -5, -4, -3, -2, -1, 0].map(n => {
       const ds = B.dagMet(n), r = rijen.find(x => x.kind_id === k.id && x.datum === ds), v = bezoeken.filter(x => x.kind_id === k.id && x.datum === ds);
@@ -88,9 +97,9 @@ function render() {
       <div class="vraag">Nog een keer geweest. Hoe was het?</div>
       <div class="knoppen">${SCHAAL.map((s, i) => `<button data-bez="${i + 1}" data-kid="${k.id}">${s.e}<small>${s.t}</small></button>`).join('')}<button data-bez="0" data-kid="${k.id}">❔<small>Weet niet</small></button></div>
       <div class="vraag">Buikpijn?</div>
-      <div class="knoppen">${kn(dagrij.buikpijn, 'buikpijn', 1, 'Ja 🤕')}${kn(!dagrij.nieuw && !dagrij.buikpijn, 'buikpijn', 0, 'Nee 😊')}</div>
+      <div class="knoppen">${kn(dagrij.buikpijn, 'buikpijn', 1, 'Ja 🤕')}${kn(dagrij.buikpijn === false, 'buikpijn', 0, 'Nee 😊')}</div>
       <div class="vraag">Zakjes genomen?</div>
-      <div class="knoppen">${kn(dagrij.zakjes, 'zakjes', 1, 'Ja 💊')}${kn(!dagrij.nieuw && !dagrij.zakjes, 'zakjes', 0, 'Nee')}</div>
+      <div class="knoppen">${kn(dagrij.zakjes, 'zakjes', 1, 'Ja 💊')}${kn(dagrij.zakjes === false, 'zakjes', 0, 'Nee')}</div>
       <div class="week">${week}</div></section>`;
   }).join('') || '<p class="fout">Geen gegevens om te tonen. Log in als ouder, of als kind met je naam en pincode.</p>';
   const ov = B.isOuder && zichtbaar().length
@@ -117,8 +126,8 @@ app.addEventListener('click', async e => {
   }
   const b = e.target.closest('button[data-k]'); if (!b) return;
   const [veld, waarde] = b.dataset.v.split(':'), kid = b.dataset.k;
-  const h = rijen.find(r => r.kind_id === kid && r.datum === datum) || { buikpijn: false, zakjes: false };
-  const rij = { kind_id: kid, datum, buikpijn: !!h.buikpijn, zakjes: !!h.zakjes };
+  const h = rijen.find(r => r.kind_id === kid && r.datum === datum) || { buikpijn: null, zakjes: null };
+  const rij = { kind_id: kid, datum, buikpijn: h.buikpijn ?? null, zakjes: h.zakjes ?? null };
   if (veld === 'buikpijn') rij.buikpijn = waarde === '1';
   if (veld === 'zakjes') rij.zakjes = waarde === '1';
   const { error } = await sb.from('toilet_dagen').upsert(rij, { onConflict: 'kind_id,datum' });

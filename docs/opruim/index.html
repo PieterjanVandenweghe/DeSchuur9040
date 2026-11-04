@@ -55,6 +55,8 @@ input{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid #
 .tabs{display:flex;gap:8px;margin-bottom:6px}.tabs .act{background:var(--joker);color:#fff}
 .rijknop{display:flex;gap:8px;justify-content:flex-end}
 select{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid #d8d2ee;margin-top:12px;background:#fff}
+.vak{background:#e6f6ff;border-radius:16px;padding:12px 14px;margin:0 0 14px}.vak summary{font-weight:600;cursor:pointer}
+.vak .velden{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;align-items:center}.vak input,.vak select{width:auto;margin:0}
 .aanvraag{background:#efeaff;border-radius:16px;padding:12px 14px;margin:14px 0 0;font-weight:500}
 .jk-knop{background:var(--joker);color:#fff}
 .fout{background:#ffe3ea;padding:14px;border-radius:16px}
@@ -96,6 +98,7 @@ const kies = (lijst, seed) => lijst[seed % lijst.length];
 function bereken(rijen) {
   let streak = 0, jokers = 0, run = 0;
   for (const r of rijen) {
+    if (r.status === 'vakantie') continue;   // niet thuis: telt niet mee
     if (r.status === 'opgeruimd') {
       streak++; run++;
       if (run >= C.DAGEN_PER_JOKER) { run = 0; jokers = Math.min(C.MAX_JOKERS, jokers + 1); }
@@ -117,7 +120,11 @@ const gekozenDag = () => gekozen || dagMet(0);
 
 function render() {
   const app = document.getElementById('app');
-  const kiezer = isOuder ? `<label class="datum">Dag beoordelen: <input type="date" id="dagkeuze" max="${dagMet(0)}" value="${gekozenDag()}"></label>` : '';
+  const kiezer = isOuder ? `<label class="datum">Dag beoordelen: <input type="date" id="dagkeuze" max="${dagMet(0)}" value="${gekozenDag()}"></label>
+    <details class="vak"><summary>🏖️ Vakantie (niet thuis)</summary><div class="velden">
+      <label>Van <input type="date" id="vakvan" value="${dagMet(0)}"></label><label>tot <input type="date" id="vaktot" value="${dagMet(0)}"></label>
+      <select id="vakkind"><option value="">Alle kinderen</option>${kinderen.map(k => `<option value="${k.id}">${esc(k.naam)}</option>`).join('')}</select></div>
+      <div class="acties"><button class="ja" data-vak="zet">Vakantie toevoegen</button><button class="nee" data-vak="wis">Vakantie wissen</button></div></details>` : '';
   app.innerHTML = kiezer + kinderen.map((k, i) => {
     const rijen = dagen.filter(d => d.kind_id === k.id).sort((a, b) => a.datum < b.datum ? -1 : 1);
     const { streak, jokers, run } = bereken(rijen);
@@ -125,13 +132,13 @@ function render() {
     const vandaag = rijen.find(r => r.datum === dagMet(0));
     const dots = [-6, -5, -4, -3, -2, -1, 0].map(n => {
       const ds = dagMet(n), r = rijen.find(x => x.datum === ds);
-      const e = !r ? '·' : r.status === 'opgeruimd' ? '✅' : r.status === 'joker' ? '🃏' : '🙈';
+      const e = !r ? '·' : r.status === 'vakantie' ? '🏖️' : r.status === 'opgeruimd' ? '✅' : r.status === 'joker' ? '🃏' : '🙈';
       const naam = DAGNAMEN[new Date(ds + 'T12:00').getDay()];
       return `<div class="dag ${n === 0 ? 'nu' : ''}">${e}<small>${naam}</small></div>`;
     }).join('');
     const kaarten = Array.from({ length: C.MAX_JOKERS }, (_, j) => `<div class="jk ${j < jokers ? '' : 'leeg'}">${j < jokers ? '🃏' : ''}</div>`).join('');
     const resterend = C.DAGEN_PER_JOKER - run;
-    const msg = !vandaag ? '' : vandaag.status === 'opgeruimd' ? kies(GOED, i + streak)
+    const msg = !vandaag ? '' : vandaag.status === 'vakantie' ? 'Fijne vakantie! 🏖️' : vandaag.status === 'opgeruimd' ? kies(GOED, i + streak)
       : vandaag.status === 'joker' ? 'Joker ingezet. De streak is gered! 🃏' : kies(SLECHT, i + rijen.length);
     const rom = rijen.filter(r => r.status === 'rommel' && r.datum >= dagMet(-1)).pop();
     const aanv = rom && aanvragen.find(a => a.kind_id === k.id && a.datum === rom.datum);
@@ -210,6 +217,8 @@ async function laad() {
 }
 
 document.getElementById('app').addEventListener('click', async e => {
+  const vk = e.target.closest('button[data-vak]');
+  if (vk) return vakantie(vk.dataset.vak === 'zet');
   const b = e.target.closest('button[data-k]');
   if (b) return zet(b.dataset.k, b.dataset.s);
   const v = e.target.closest('button[data-vraag]');
@@ -221,6 +230,28 @@ document.getElementById('app').addEventListener('click', async e => {
   const o = e.target.closest('button[data-keur]');
   if (o) return keur(o.dataset.keur, o.dataset.ok === '1');
 });
+
+async function vakantie(zetten) {
+  const van = document.getElementById('vakvan').value, tot = document.getElementById('vaktot').value;
+  const kid = document.getElementById('vakkind').value;
+  if (!van || !tot || tot < van) return alert('Kies een geldige periode.');
+  const ids = kid ? [kid] : kinderen.filter(k => !k.test_voor).map(k => k.id);   // testkind nooit bij 'alle'
+  let error;
+  if (zetten) {
+    const rijen = [];
+    for (let d = new Date(van + 'T12:00'); iso(d) <= tot; d.setDate(d.getDate() + 1))
+      ids.forEach(kind_id => rijen.push({ kind_id, datum: iso(d), status: 'vakantie' }));
+    if (rijen.length > 366 * ids.length) return alert('Die periode is te lang.');
+    const bestaand = dagen.filter(x => ids.includes(x.kind_id) && x.datum >= van && x.datum <= tot && x.status !== 'vakantie').length;
+    if (bestaand && !confirm(`${bestaand} dag(en) in die periode zijn al beoordeeld. Overschrijven met vakantie?`)) return;
+    ({ error } = await sb.from('dagen').upsert(rijen, { onConflict: 'kind_id,datum' }));
+  } else {
+    ({ error } = await sb.from('dagen').delete().in('kind_id', ids).eq('status', 'vakantie').gte('datum', van).lte('datum', tot));
+  }
+  if (error) return alert('Mislukt: ' + error.message + (zetten ? ' (voer supabase/vakantie.sql uit?)' : ''));
+  await laad();
+  if (zetten) regen(['🏖️', '☀️', '✈️']);
+}
 
 async function keur(id, ok) {
   const a = aanvragen.find(x => x.id === id);
