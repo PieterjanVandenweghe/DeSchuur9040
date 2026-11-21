@@ -113,7 +113,7 @@ async function zetOpLijst(productId) {
 }
 async function nieuwProduct() {
   const naam = zoekwaarde(); if (!naam) return;
-  const { data, error } = await sb.from('producten').insert({ naam, categorie_id: nieuweCat, eenheid: (document.getElementById('eenh') || {}).value || 'st' }).select().single();
+  const { data, error } = await sb.from('producten').insert({ naam: B.hoofdletter(naam), categorie_id: nieuweCat, eenheid: (document.getElementById('eenh') || {}).value || 'st' }).select().single();
   if (error) return alert('Opslaan mislukt: ' + error.message);
   prods.push(data); await zetOpLijst(data.id);
 }
@@ -174,7 +174,7 @@ app.addEventListener('click', async e => {
   if (d.klaar) { beheerWinkel = null; return vul(); }
   if (d.omhoog) return beweeg(d.omhoog, -1);
   if (d.omlaag) return beweeg(d.omlaag, 1);
-  if (d.addprod) { const i = app.querySelector(`input[data-pinput="${d.addprod}"]`), n = i.value.trim(); if (n) await schrijf(sb.from('producten').insert({ naam: n, categorie_id: d.addprod })); return; }
+  if (d.addprod) { const i = app.querySelector(`input[data-pinput="${d.addprod}"]`), n = i.value.trim(); if (n) await schrijf(sb.from('producten').insert({ naam: B.hoofdletter(n), categorie_id: d.addprod })); return; }
   if (d.delprod) { if (confirm('Product verwijderen uit de catalogus?')) await schrijf(sb.from('producten').delete().eq('id', d.delprod)); return; }
   if (d.addcat) { const n = document.getElementById('nwcatnaam').value.trim(); if (n) await schrijf(sb.from('categorieen').insert({ naam: n, standaard_volgorde: Math.max(0, ...cats.map(c => c.standaard_volgorde)) + 1 })); return; }
 });

@@ -24,6 +24,9 @@
 button[disabled]{opacity:.4;cursor:default}
 #plan{max-width:440px;width:92vw}.planlijst{max-height:50vh;overflow:auto;margin:8px 0}.rij.uit{color:var(--soft)}.rij label{cursor:pointer}
 #plan .rijknop{flex-wrap:wrap}
+#import{max-width:520px;width:94vw}.implijst{max-height:58vh;overflow:auto;margin:8px 0;display:grid;gap:10px}
+.imp{background:var(--bg);border-radius:14px;padding:10px}.imp.uit{opacity:.5}.imp .orig{font-size:.85rem;color:var(--soft);display:flex;gap:8px;align-items:center}
+.imp .vorm{margin-top:6px}.imp .nieuw{padding:8px}textarea{font:inherit;width:100%;min-height:9rem;padding:12px;border-radius:12px;border:2px solid #d8d2ee}
 </style>
 </head>
 <body>
@@ -31,6 +34,7 @@ button[disabled]{opacity:.4;cursor:default}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="../config.js"></script>
 <script src="../gedeeld/basis.js"></script>
+<script src="../gedeeld/ingredienten.js"></script>
 <script>
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
 const MENU_BEWAREN_WEKEN = 2;   // zoveel weken in het verleden blijft het menu bewaard
@@ -116,7 +120,7 @@ function receptenHtml() {
       <input id="rtitel" type="text" maxlength="200" placeholder="Naam van het gerecht" autocomplete="off">
       <input id="rlink" type="text" inputmode="url" maxlength="1000" placeholder="Link naar het recept (optioneel)" autocomplete="off">
       <input id="rnotitie" type="text" maxlength="500" placeholder="Notitie (optioneel, bv. “met de kinderen gemaakt”)" autocomplete="off">
-      <button class="ja" data-addrec="1">Toevoegen</button></div></div>
+      <div class="rijknop" style="justify-content:flex-start"><button class="ja" data-addrec="1">Toevoegen</button><button data-importlink="1">🔗 Importeren van de link</button></div></div></div>
     <div class="kaart"><input id="rzoek" type="search" placeholder="Zoek in recepten" value="${esc(filter)}" autocomplete="off"><div id="rlijst"></div></div>`;
 }
 function paneel(r) {
@@ -129,7 +133,10 @@ function paneel(r) {
     <div class="vorm"><input type="text" data-iprod="${r.id}" id="iprod-${r.id}" placeholder="Ingrediënt (typ om te zoeken)" autocomplete="off"><div id="isug-${r.id}"></div>
       <div class="hv"><input id="ihv-${r.id}" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="ieh-${r.id}" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option><option value="ml">ml</option></select></div>
       <div id="icatvak-${r.id}" class="nieuw" hidden>➕ Nieuw product. Opslaan in:<select id="icat-${r.id}" aria-label="Categorie voor een nieuw product">${categorieen.map(c => `<option value="${c.id}" ${c.id === andere ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select></div>
-      <button class="ja" data-addingr="${r.id}">Ingrediënt toevoegen</button></div>
+      <button class="ja" data-addingr="${r.id}">Ingrediënt toevoegen</button>
+      <details><summary class="sub">📋 Een hele lijst plakken</summary>
+        <textarea id="iplak-${r.id}" placeholder="Plak hier de ingrediënten, één per regel (bv. 2 uien, 400 g gehakt)"></textarea>
+        <button class="ja" data-plak="${r.id}">Lijst controleren</button></details></div>
     ${lijst.length ? `<div class="rijknop" style="justify-content:flex-start"><button class="ja" data-oplijst="${r.id}">🛒 Op het boodschappenlijstje</button></div>` : ''}</div>`;
 }
 function vulRecepten() {
@@ -166,13 +173,95 @@ async function addIngr(rid) {
   const n = parseFloat(String(document.getElementById('ihv-' + rid).value).replace(',', '.')), eenh = document.getElementById('ieh-' + rid).value;
   let p = producten.find(x => x.naam.toLowerCase() === naam.toLowerCase());
   if (!p) {
-    const r = await sb.from('producten').insert({ naam, categorie_id: document.getElementById('icat-' + rid).value, eenheid: eenh }).select().single();
+    const r = await sb.from('producten').insert({ naam: B.hoofdletter(naam), categorie_id: document.getElementById('icat-' + rid).value, eenheid: eenh }).select().single();
     if (r.error) return alert('Nieuw product opslaan mislukt: ' + r.error.message);
     p = r.data; producten.push(p);
   }
   const { error } = await sb.from('recept_ingredienten').upsert({ recept_id: rid, product_id: p.id, hoeveelheid: n > 0 ? n : null, eenheid: eenh }, { onConflict: 'recept_id,product_id' });
   if (error) return alert('Opslaan mislukt: ' + error.message);
   await laadIngr(); render();
+}
+
+// Importeren: regels lezen, koppelen aan producten, laten controleren, dan opslaan.
+let imp = { rid: null, rijen: [] };
+const andereCat = () => (categorieen.find(c => c.naam === 'Andere') || categorieen[0] || {}).id;
+function toonImport(rid, regels) {
+  imp = { rid, rijen: regels.map(x => { const p = Ingr.koppel(x.naam, producten); return { ...x, naam: p ? p.naam : B.hoofdletter(x.naam), mee: true, cat: andereCat() }; }) };
+  let el = document.getElementById('import');
+  if (!el) {
+    el = document.createElement('dialog'); el.id = 'import'; document.body.appendChild(el);
+    el.addEventListener('click', importKlik); el.addEventListener('input', importInput); el.addEventListener('change', importInput);
+  }
+  const r = recepten.find(x => x.id === rid);
+  el.innerHTML = `<strong>Ingrediënten voor ${esc(r ? r.titel : 'recept')}</strong>
+    <p class="sub">Kijk elke regel na. Een bestaand product herken je aan de categorie; voor een nieuw product kies je er een.</p>
+    <div class="implijst">${imp.rijen.map((x, i) => impRij(x, i)).join('') || '<p class="sub">Geen ingrediënten gevonden.</p>'}</div>
+    <div class="rijknop"><button data-impannuleer="1">Annuleer</button><button class="ja" data-impok="1">Opslaan</button></div>`;
+  el.showModal();
+}
+function impRij(x, i) {
+  const { treffers, exact } = B.zoekProducten(producten, x.naam, 5);
+  const cat = id => (categorieen.find(c => c.id === id) || {}).naam || '';
+  return `<div class="imp ${x.mee ? '' : 'uit'}" id="imp-${i}"><label class="orig"><input type="checkbox" data-impmee="${i}" ${x.mee ? 'checked' : ''}> ${esc(x.tekst)}</label>
+    <div class="vorm"><input type="text" data-impnaam="${i}" value="${esc(x.naam)}" placeholder="Product" autocomplete="off">
+    <div data-impsug="${i}">${!exact && treffers.length ? `<div class="sug">${treffers.map(p => `<button data-impkies="${i}" data-p="${p.id}">${esc(p.naam)} <small>· ${esc(cat(p.categorie_id))}</small></button>`).join('')}</div>` : ''}</div>
+    <div class="hv"><input type="number" inputmode="decimal" min="0" step="any" data-imphv="${i}" value="${x.hoeveelheid ?? ''}" placeholder="Aantal (optioneel)"><select data-impeh="${i}">${['st', 'g', 'ml'].map(u => `<option ${u === x.eenheid ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+    ${exact ? `<small class="sub">✓ ${esc(exact.naam)} · ${esc(cat(exact.categorie_id))}</small>` : `<div class="nieuw">➕ Nieuw product. Opslaan in: <select data-impcat="${i}">${categorieen.map(c => `<option value="${c.id}" ${c.id === x.cat ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select></div>`}</div></div>`;
+}
+function herteken(i) { const el = document.getElementById('imp-' + i), f = document.activeElement && document.activeElement.dataset.impnaam === String(i); el.outerHTML = impRij(imp.rijen[i], i); if (f) { const n = document.querySelector(`[data-impnaam="${i}"]`); n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }
+function importInput(e) {
+  const d = e.target.dataset, x = imp.rijen[Number(d.impnaam ?? d.imphv ?? d.impeh ?? d.impcat ?? d.impmee)]; if (!x) return;
+  if (d.impnaam !== undefined) { x.naam = e.target.value; if (e.type === 'input') herteken(Number(d.impnaam)); }
+  if (d.imphv !== undefined) { const n = parseFloat(String(e.target.value).replace(',', '.')); x.hoeveelheid = n > 0 ? n : null; }
+  if (d.impeh !== undefined) x.eenheid = e.target.value;
+  if (d.impcat !== undefined) x.cat = e.target.value;
+  if (d.impmee !== undefined && e.type === 'change') { x.mee = e.target.checked; document.getElementById('imp-' + d.impmee).classList.toggle('uit', !x.mee); }
+}
+async function importKlik(e) {
+  const t = e.target.closest('button'); if (!t) return; const d = t.dataset, el = document.getElementById('import');
+  if (d.impannuleer) return el.close();
+  if (d.impkies !== undefined) { const p = producten.find(x => x.id === d.p), x = imp.rijen[Number(d.impkies)]; x.naam = p.naam; x.eenheid = x.hoeveelheid == null ? (p.eenheid || 'st') : x.eenheid; return herteken(Number(d.impkies)); }
+  if (!d.impok) return;
+  const mee = imp.rijen.filter(x => x.mee && x.naam.trim());
+  t.disabled = true;
+  try {
+    const rijen = new Map();
+    for (const x of mee) {
+      let p = producten.find(q => q.naam.toLowerCase() === x.naam.trim().toLowerCase());
+      if (!p) {
+        const n = await sb.from('producten').insert({ naam: B.hoofdletter(x.naam), categorie_id: x.cat, eenheid: x.eenheid }).select().single();
+        if (n.error) throw n.error; p = n.data; producten.push(p);
+      }
+      rijen.set(p.id, { recept_id: imp.rid, product_id: p.id, hoeveelheid: x.hoeveelheid, eenheid: x.eenheid });   // dubbel product: laatste regel telt
+    }
+    if (rijen.size) { const r = await sb.from('recept_ingredienten').upsert([...rijen.values()], { onConflict: 'recept_id,product_id' }); if (r.error) throw r.error; }
+    el.close(); open = imp.rid; tab = 'recepten'; await laadIngr(); render();
+  } catch (x) { t.disabled = false; alert('Opslaan mislukt: ' + x.message); }
+}
+
+// Recept van een link: titel, personen en ingrediënten via de Edge Function 'recept-import'
+async function importLink() {
+  const raw = document.getElementById('rlink').value.trim(), link = veilig(raw);
+  if (!link) return alert('Plak eerst de link naar het recept in het veld “Link”.');
+  const knop = document.querySelector('[data-importlink]'); knop.disabled = true; knop.textContent = 'Bezig met ophalen…';
+  try {
+    const { data, error } = await sb.functions.invoke('recept-import', { body: { url: link } });
+    if (error) {   // bij een foutstatus zit onze uitleg ({ fout }) in het antwoord zelf
+      let uitleg = null; try { uitleg = (await error.context.json()).fout; } catch (x) {}
+      throw new Error(uitleg || error.message);
+    }
+    if (data.fout) throw new Error(data.fout);
+    const titel = document.getElementById('rtitel').value.trim() || data.titel || 'Nieuw recept';
+    const notitie = document.getElementById('rnotitie').value.trim() || null;
+    const n = await sb.from('recepten').insert({ titel: titel.slice(0, 200), link, notitie, personen: Ingr.personen(data.personen) || 4 }).select().single();
+    if (n.error) throw n.error;
+    recepten.push(n.data); recepten.sort((a, b) => a.titel.localeCompare(b.titel));
+    ['rtitel', 'rlink', 'rnotitie'].forEach(id => { document.getElementById(id).value = ''; });
+    open = n.data.id; render();
+    toonImport(n.data.id, (data.ingredienten || []).map(Ingr.leesRegel).filter(x => x.naam));
+  } catch (x) {
+    alert('Importeren lukte niet: ' + x.message + '\nJe kunt het recept ook gewoon toevoegen en de ingrediënten plakken.');
+  } finally { knop.disabled = false; knop.textContent = '🔗 Importeren van de link'; }
 }
 
 // Zet ingrediënten op het boodschappenlijstje: eerst een overzicht om per ingrediënt te kiezen, dan opslaan.
@@ -285,6 +374,12 @@ app.addEventListener('click', async e => {
   }
   if (d.open) { open = open === d.open ? null : d.open; return vulRecepten(); }
   if (d.addingr) return addIngr(d.addingr);
+  if (d.plak) {
+    const regels = Ingr.leesTekst(document.getElementById('iplak-' + d.plak).value);
+    if (!regels.length) return alert('Ik vond geen ingrediënten. Plak één ingrediënt per regel.');
+    return toonImport(d.plak, regels);
+  }
+  if (d.importlink) return importLink();
   if (d.kiesprod) {
     const p = producten.find(x => x.id === d.kiesprod), i = document.getElementById('iprod-' + d.rid);
     i.value = p.naam; ingrSugg(d.rid); document.getElementById('ihv-' + d.rid).focus(); return;

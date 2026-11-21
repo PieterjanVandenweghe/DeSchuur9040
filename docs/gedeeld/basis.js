@@ -26,6 +26,8 @@
     return { treffers: prods.filter(p => p.naam.toLowerCase().includes(ql)).sort((a, b) => a.naam.length - b.naam.length).slice(0, max),
              exact: prods.find(p => p.naam.toLowerCase() === ql) || null };
   };
+  // Nieuwe productnamen altijd met een hoofdletter: "uien" -> "Uien" (de rest blijft zoals getypt)
+  B.hoofdletter = s => { s = String(s).trim(); return /^ij/i.test(s) ? 'IJ' + s.slice(2) : s.charAt(0).toLocaleUpperCase('nl-BE') + s.slice(1); };
   B.dagMet = n => { const d = new Date(); d.setDate(d.getDate() + n); return B.iso(d); };
 
   const DLG = `<dialog id="login"><form id="loginform"><strong>Wie ben jij?</strong>
