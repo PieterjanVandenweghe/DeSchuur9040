@@ -12,12 +12,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../gedeeld/stijl.css">
 <style>
 :root{--bg:#fff4e0;--ink:#2b2250;--soft:#6d6590;--card:#fff;--flame:#ff6b35;--joker:#7b5cff;--ok:#1fb58f;--bad:#e8456b}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:Fredoka,"Trebuchet MS",system-ui,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;max-width:760px;margin:0 auto}
-h1{font-size:1.5rem;margin:0;font-weight:700}
 button{font:inherit;cursor:pointer;border:0;border-radius:14px;padding:10px 16px;font-weight:500;color:var(--ink);background:#fff;box-shadow:0 2px 0 rgba(43,34,80,.15)}
 button:focus-visible,input:focus-visible{outline:3px solid var(--joker);outline-offset:2px}
 main{max-width:760px;margin:0 auto;padding:0 16px 40px;display:grid;gap:20px}
@@ -60,38 +59,26 @@ select{font:inherit;width:100%;padding:12px;border-radius:12px;border:2px solid 
 .aanvraag{background:#efeaff;border-radius:16px;padding:12px 14px;margin:14px 0 0;font-weight:500}
 .jk-knop{background:var(--joker);color:#fff}
 .fout{background:#ffe3ea;padding:14px;border-radius:16px}
-.regen{position:fixed;top:-2rem;font-size:2rem;pointer-events:none;animation:val 1.8s ease-in forwards;z-index:9}
-@keyframes val{to{transform:translateY(110vh) rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.vlam .f{animation:none}.regen{display:none}}
+@media (prefers-reduced-motion:reduce){.vlam .f{animation:none}}
 </style>
 </head>
 <body>
-<header>
-  <h1 style="display:flex;align-items:center;gap:10px"><a href="../" aria-label="Naar thuis" style="display:flex"><img src="../icon.svg" alt="" width="36" height="36" style="display:block;border-radius:9px"></a> Opruimstreak</h1>
-  <button id="ouderknop">Inloggen</button>
-</header>
 <main id="app"><p style="padding:0 8px">Laden…</p></main>
 
-<dialog id="login"><form id="loginform"><strong>Wie ben jij?</strong>
-  <input id="wie" type="text" autocapitalize="none" autocorrect="off" autocomplete="username" placeholder="Jouw naam" required>
-  <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="Pincode" autocomplete="current-password" required>
-  <div class="rijknop"><button type="button" class="annuleer">Annuleer</button><button class="ja">Inloggen</button></div></form></dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="../config.js"></script>
+<script src="../gedeeld/basis.js"></script>
 <script>
-const C = window.CONFIG;
-const sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY);
+const B = Basis, C = B.C, sb = B.sb;
 const KLEUREN = ['#ff6b35', '#7b5cff', '#1fb58f', '#e8456b'];
 const GOED = ['Wat een stralende kamer! ✨', 'De vloer heeft weer een vloer! 🏆', 'Kamer-kampioen van de dag! 🥇', 'Je speelgoed zingt van geluk 🎶'];
 const SLECHT = ['Je kamer lijkt wel een tornado-museum 🌪️', 'Het speelgoed vraagt om hulp 🆘', 'Een ontdekkingsreis naar de vloer is nodig 🧭', 'Morgen nieuwe kans! 💪'];
 const DAGNAMEN = ['zo', 'ma', 'di', 'woe', 'don', 'vrij', 'zat'];
 
-let kinderen = [], dagen = [], aanvragen = [], ouderLijst = [], isOuder = false, sessie = null, mijnKind = null;
+let kinderen = [], dagen = [], aanvragen = [], isOuder = false, sessie = null, mijnKind = null;
 
-const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const dagMet = n => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const iso = B.iso, dagMet = B.dagMet, esc = B.esc;
 const kies = (lijst, seed) => lijst[seed % lijst.length];
 
 // Streak en jokers worden altijd opnieuw berekend uit de opgeslagen dagen.
@@ -164,19 +151,9 @@ function render() {
       <div class="tijd ${min < basis ? 'min' : ''}">📱 ${esc(k.beperking || 'Schermtijd')} vandaag: <b>${min} min</b>${min < basis ? ' (rommel gisteren)' : ''}</div>
       ${msg ? `<p class="msg">${msg}</p>` : ''}${jokerblok}${acties}</section>`;
   }).join('') || '<p class="fout">Nog geen kinderen in de database. Voer supabase/schema.sql uit.</p>';
-  document.getElementById('ouderknop').textContent = sessie ? 'Uitloggen' : 'Inloggen';
 }
 
-function regen(emoji, aantal = 28) {
-  for (let i = 0; i < aantal; i++) {
-    const e = document.createElement('span');
-    e.className = 'regen'; e.textContent = emoji[i % emoji.length];
-    e.style.left = Math.random() * 100 + 'vw';
-    e.style.animationDelay = Math.random() * .6 + 's';
-    document.body.appendChild(e);
-    setTimeout(() => e.remove(), 2800);
-  }
-}
+const regen = l => B.regen(l, 28);
 
 async function zet(kindId, status) {
   const kind = kinderen.find(k => k.id === kindId);
@@ -194,26 +171,22 @@ async function zet(kindId, status) {
 }
 
 async function laad() {
+  sessie = B.sessie; isOuder = B.isOuder; mijnKind = B.mijnKind;
   if (!sessie) {
-    kinderen = []; dagen = []; aanvragen = []; isOuder = false; mijnKind = null;
-    document.getElementById('ouderknop').textContent = 'Inloggen';
+    kinderen = []; dagen = []; aanvragen = [];
     document.getElementById('app').innerHTML = '<p class="fout">Log eerst in (knop rechtsboven) om de streaks te zien.</p>';
     return;
   }
-  const vb = await sb.from('app_verbergen').select('app').eq('user_id', sessie.user.id).eq('app', 'opruim');
-  if (!vb.error && vb.data.length) { document.getElementById('app').innerHTML = '<p class="fout">Deze app is niet beschikbaar voor jou.</p>'; return; }
-  const [k, d, a, o] = await Promise.all([
-    sb.from('kinderen').select('*').order('volgorde'),
+  const [d, a] = await Promise.all([
     sb.from('dagen').select('*').order('datum'),
-    sb.from('jokeraanvragen').select('*'),
-    sb.from('ouders').select('*')
+    sb.from('jokeraanvragen').select('*')
   ]);
-  if (k.error || d.error) {
-    document.getElementById('app').innerHTML = `<p class="fout">Kan de gegevens niet laden: ${esc((k.error || d.error).message)}. Controleer config.js en of het Supabase-project niet gepauzeerd is.</p>`;
+  if (d.error) {
+    document.getElementById('app').innerHTML = `<p class="fout">Kan de gegevens niet laden: ${esc(d.error.message)}. Controleer config.js en of het Supabase-project niet gepauzeerd is.</p>`;
     return;
   }
-  kinderen = k.data; dagen = d.data; aanvragen = a.error ? [] : a.data; ouderLijst = o.error ? [] : o.data;
-  await bepaalRol(); render();
+  kinderen = B.kinderen; dagen = d.data; aanvragen = a.error ? [] : a.data;
+  render();
 }
 
 document.getElementById('app').addEventListener('click', async e => {
@@ -268,29 +241,10 @@ async function keur(id, ok) {
   if (ok) regen(['🃏']);
 }
 
-async function bepaalRol() {
-  isOuder = false; mijnKind = null;
-  if (!sessie) return;
-  const { data } = await sb.from('ouders').select('user_id').eq('user_id', sessie.user.id).maybeSingle();
-  if (data) isOuder = true; else mijnKind = kinderen.find(k => k.user_id === sessie.user.id) || null;
-}
-
 document.getElementById('app').addEventListener('change', e => {
   if (e.target.id === 'dagkeuze') { gekozen = e.target.value && e.target.value <= dagMet(0) ? e.target.value : null; render(); }
 });
-const dlg = document.getElementById('login');
-const loginEmail = naam => naam.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '') + '@' + (C.LOGIN_DOMEIN || 'gezin.example.com');
-document.querySelectorAll('.annuleer').forEach(b => b.addEventListener('click', () => dlg.close()));
-document.getElementById('ouderknop').addEventListener('click', () => { if (sessie) sb.auth.signOut(); else dlg.showModal(); });
-document.getElementById('loginform').addEventListener('submit', async e => {
-  e.preventDefault();
-  const { error } = await sb.auth.signInWithPassword({ email: loginEmail(document.getElementById('wie').value), password: document.getElementById('pin').value });
-  if (error) return alert('Naam of pincode klopt niet. Probeer opnieuw.');
-  document.getElementById('pin').value = ''; dlg.close();
-});
-
-sb.auth.onAuthStateChange((_e, session) => { sessie = session; setTimeout(laad, 0); });
-laad();
+B.start('🧹 Opruimstreak', laad, { app: 'opruim' });
 </script>
 </body>
 </html>

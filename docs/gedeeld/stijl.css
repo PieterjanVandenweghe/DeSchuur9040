@@ -27,3 +27,11 @@ dialog input,dialog select{margin-top:12px}
 .tegels{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 a.tegel{display:block;text-decoration:none;color:var(--ink);background:var(--card);border-radius:28px;padding:28px 20px;text-align:center;border:3px solid var(--c)}
 a.tegel b{display:block;font-size:3rem;margin-bottom:6px}
+
+.regen{position:fixed;top:-2rem;font-size:2rem;pointer-events:none;animation:val 2s ease-in forwards;z-index:60}
+@keyframes val{to{transform:translateY(110vh) rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.regen{display:none}}
+a.snel{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#fff;font-size:1.4rem;text-decoration:none;box-shadow:0 2px 0 rgba(43,34,80,.15)}a.snel[hidden]{display:none}
+.tegel.schik{background:var(--card);border-radius:28px;padding:20px;text-align:center;border:3px dashed var(--c)}.tegel.schik b{display:block;font-size:2.4rem;margin-bottom:6px}
+.pijlen{display:flex;gap:8px;justify-content:center;margin-top:10px}.pijlen button{min-width:56px}.pijlen button:disabled{opacity:.3;cursor:default}
+.sug{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.sug button{background:#efeaff}

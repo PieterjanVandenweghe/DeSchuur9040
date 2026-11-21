@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="robots" content="noindex">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dramameter</title>
+<title>Barometer</title>
 <link rel="manifest" href="../manifest.json">
 <link rel="icon" href="../icon.svg">
 <link rel="apple-touch-icon" href="../icon-180.png">
@@ -30,13 +30,13 @@ input[type=range]{width:100%;margin:12px 0;accent-color:var(--flame);height:32px
 .t3 h2{color:#c9254f}
 .adem{width:140px;height:140px;border-radius:50%;background:var(--joker);margin:18px auto;display:grid;place-items:center;color:#fff;font-weight:700;animation:ademen 8s ease-in-out infinite}
 .opdracht{background:#fff;border-radius:18px;padding:14px;font-size:1.15rem;margin-top:10px}
-.regen{position:fixed;top:-2rem;font-size:2rem;pointer-events:none;animation:val 2s ease-in forwards;z-index:60}
 @keyframes bons{50%{transform:translateY(-10px)}}@keyframes wieg{50%{transform:rotate(8deg) scale(1.08)}}
 @keyframes beef{0%{transform:translate(2px,1px)}25%{transform:translate(-3px,2px)}50%{transform:translate(2px,-2px)}75%{transform:translate(-2px,-1px)}100%{transform:translate(1px,2px)}}
+.nerd.t2,.nerd.t3{animation-name:blauw}.nerd.t3 h2{color:#3a56c9}
+@keyframes blauw{from{background-color:#e6f0ff}to{background-color:#a9c4ff}}
 @keyframes rood{from{background-color:#ffe3ec}to{background-color:#ff9fb2}}
 @keyframes ademen{0%,100%{transform:scale(.7)}50%{transform:scale(1.2)}}
-@keyframes val{to{transform:translateY(110vh) rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.drama,.drama *,.regen{animation:none!important}.regen{display:none}}
+@media (prefers-reduced-motion:reduce){.drama,.drama *{animation:none!important}}
 </style>
 </head>
 <body>
@@ -46,18 +46,41 @@ input[type=range]{width:100%;margin:12px 0;accent-color:var(--flame);height:32px
 <script src="../gedeeld/basis.js"></script>
 <script>
 const B = Basis, esc = B.esc, app = document.getElementById('app');
-const NIVEAUS = [
+// Elke meter: zelfde werking, eigen teksten. Een nieuwe meter = een extra blok hier.
+const METERS = {
+ drama: {
+  tab: '🎭 Drama', vraag: 'Wie maakt er drama?', knop: 'Drama melden 🎭', slider: 'Hoe groot is het drama?',
+  zacht: 'Een beetje theater mag, maar zo doen we het niet. Tijd om te resetten 🧘', start: 'Reset starten',
+  kop: 'Even resetten 🧘', uitleg: 'Adem rustig mee met de cirkel. Doe dan dit:', adem: true, klaar: ['⭐', '🎉', '✨'],
+  niveaus: [
   { van: 1, tot: 3, e: '🥱', naam: 'Kleine hapering', regen: [], lijnen: ['Een kleine zucht met een snufje theater.', 'Dit was nog maar de opwarming.', 'Nauwelijks een rimpeling in de drama-oceaan.'] },
   { van: 4, tot: 6, e: '🎭', naam: 'Oscar-genomineerd', regen: ['🎭', '🏆', '👏'], lijnen: ['Oscar voor beste hoofdrol 🏆', 'De jury is ontroerd, maar niet overtuigd.', 'Applaus! Maar het script mag korter.'] },
   { van: 7, tot: 8, e: '🌋', naam: 'Vulkaanuitbarsting', regen: ['🌋', '🔥', '💥'], lijnen: ['Seismologen meten een flinke beving 📈', 'Het speelgoed is in veiligheid gebracht 🧸', 'De buren hebben het ook gehoord.'] },
   { van: 9, tot: 10, e: '🚨', naam: 'Code rood', regen: ['🚨', '🌪️', '🚒'], lijnen: ['Alle dramaleraars naar de gang! 🚨', 'Dit gaat de geschiedenisboeken in als Het Grote Drama.', 'Roep de brandweer: het drama staat in lichterlaaie 🔥'] }
-];
-const HERSTEL = ['Drink een groot glas water 💧', 'Doe 10 sprongen op de plaats 🐸', 'Geef iemand een knuffel 🤗', 'Zeg “sorry” of “dankjewel” 💬', 'Tel rustig tot 10 🔢', 'Wandel een rondje door het huis 🚶', 'Maak je klein als een muis, en dan groot als een reus 🐭🦒', 'Haal drie keer diep adem 🌬️'];
-const tierIdx = n => NIVEAUS.findIndex(t => n >= t.van && n <= t.tot);
+  ],
+  opdrachten: ['Drink een groot glas water 💧', 'Doe 10 sprongen op de plaats 🐸', 'Geef iemand een knuffel 🤗', 'Zeg “sorry” of “dankjewel” 💬', 'Tel rustig tot 10 🔢', 'Wandel een rondje door het huis 🚶', 'Maak je klein als een muis, en dan groot als een reus 🐭🦒', 'Haal drie keer diep adem 🌬️']
+ },
+ nerd: {
+  tab: '🤓 Nerd', vraag: 'Wie wil er weer een app voor maken?', knop: 'Nerdmoment melden 🤓', slider: 'Hoe erg is de app-koorts?',
+  zacht: 'Niet alles moet gedigitaliseerd worden. Probeer het eerst analoog 📝', start: 'Analoog oplossen',
+  kop: 'Terug naar analoog 📝', uitleg: 'Leg de telefoon even weg. Doe dan dit:', adem: false, klaar: ['📝', '✏️', '📌'],
+  niveaus: [
+   { van: 1, tot: 3, e: '💡', naam: 'Klein idee', regen: [], lijnen: ['Er bestaat vast een app voor.', 'Nog onschuldig. Voorlopig.', 'Een idee is nog geen database.'] },
+   { van: 4, tot: 6, e: '📱', naam: 'App-koorts', regen: ['📱', '💻', '⚙️'], lijnen: ['“Dat kunnen we toch in een database steken?”', 'Er wordt al gefluisterd over een login met pincode.', 'De koelkastmagneet voelt zich gepasseerd.'] },
+   { van: 7, tot: 8, e: '🛠️', naam: 'Bouwwoede', regen: ['🛠️', '🗄️', '⌨️'], lijnen: ['Er is al een tabel aangemaakt voor de boodschappen van oma.', 'Iemand heeft “even snel” een server opgestart.', 'Het blad papier kijkt verdrietig toe.'] },
+   { van: 9, tot: 10, e: '🤖', naam: 'Volledige digitalisering', regen: ['🤖', '📲', '🛰️'], lijnen: ['“Ik automatiseer even het tandenpoetsen.”', 'Zelfs de hond heeft nu een account.', 'De robots nemen het over. Help!'] }
+  ],
+  opdrachten: ['Neem een blad papier en een pen. Klaar ✏️', 'Hang het op de koelkast met een magneet 🧲', 'Zeg het gewoon hardop tegen wie het moet weten 🗣️', 'Gebruik een krijtbord, een post-it of de achterkant van een envelop 📌', 'Vraag: “Hoe deden we dit vóór er apps waren?” En doe dat 🕰️', 'Leg je telefoon 10 minuten weg. Bestaat het probleem dan nog? 📵', 'Wacht een week. Nog steeds een goed idee? Dan mag je erover praten 📅']
+ }
+};
+let meter = 'drama';
+try { if (METERS[localStorage.getItem('meter')]) meter = localStorage.getItem('meter'); } catch (x) {}
+const M = () => METERS[meter], NIVEAUS_ = () => M().niveaus;
+const tierIdx = n => NIVEAUS_().findIndex(t => n >= t.van && n <= t.tot);
 const kies = a => a[Math.floor(Math.random() * a.length)];
 let gekozen = null, anderNaam = '', niveau = 3;
 
-B.start('🎭 Dramameter', render, { app: 'drama' });
+B.start('🌦️ Barometer', render, { app: 'drama' });
 
 // Iedereen kan iedereen aanduiden: gezinsleden, jezelf of iemand anders (vrije naam). Er wordt niets bewaard.
 const personen = () => [
@@ -70,53 +93,49 @@ function render() {
   const ik = B.sessie.user.id, lijst = personen();
   const chips = lijst.map(p => `<button class="chip ${gekozen === p.id ? 'act' : ''}" data-wie="${p.id}">${esc(p.emoji)} ${esc(p.naam)}${p.uid === ik ? ' (ik)' : ''}</button>`).join('')
     + `<button class="chip ${gekozen === 'ander' ? 'act' : ''}" data-wie="ander">➕ Iemand anders</button>`;
-  const t = NIVEAUS[tierIdx(niveau)];
-  app.innerHTML = `<div class="kaart"><strong>Wie maakt er drama?</strong><div class="chips">${chips}</div>
+  const t = NIVEAUS_()[tierIdx(niveau)];
+  const tabs = `<div class="tabs">${Object.entries(METERS).map(([k, m]) => `<button data-meter="${k}" class="${k === meter ? 'act' : ''}">${m.tab}</button>`).join('')}</div>`;
+  app.innerHTML = tabs + `<div class="kaart"><strong>${esc(M().vraag)}</strong><div class="chips">${chips}</div>
       ${gekozen === 'ander' ? `<input id="ander" type="text" maxlength="40" placeholder="Naam (bv. de hond, oma, de buurman)" value="${esc(anderNaam)}" style="margin-top:10px">` : ''}</div>
     <div class="kaart"><div class="meter"><div class="groot" id="e" style="font-size:${2.5 + niveau * 0.45}rem">${t.e}</div>
-      <input type="range" id="slider" min="1" max="10" value="${niveau}" aria-label="Hoe groot is het drama?">
+      <input type="range" id="slider" min="1" max="10" value="${niveau}" aria-label="${esc(M().slider)}">
       <div class="sub" id="t">${niveau} · ${t.naam}</div>
-      <button class="ja" data-meld="1">Drama melden 🎭</button></div></div>`;
+      <button class="ja" data-meld="1">${M().knop}</button></div></div>`;
 }
 
 app.addEventListener('input', e => {
   if (e.target.id === 'slider') {
-    niveau = Number(e.target.value); const t = NIVEAUS[tierIdx(niveau)];
+    niveau = Number(e.target.value); const t = NIVEAUS_()[tierIdx(niveau)];
     const em = document.getElementById('e'); em.textContent = t.e; em.style.fontSize = (2.5 + niveau * 0.45) + 'rem';
     document.getElementById('t').textContent = `${niveau} · ${t.naam}`;
   }
   if (e.target.id === 'ander') anderNaam = e.target.value;
 });
 
-function regen(lijst) {
-  if (!lijst.length) return;
-  for (let i = 0; i < 26; i++) {
-    const s = document.createElement('span'); s.className = 'regen'; s.textContent = lijst[i % lijst.length];
-    s.style.left = Math.random() * 100 + 'vw'; s.style.animationDelay = Math.random() * .8 + 's';
-    document.body.appendChild(s); setTimeout(() => s.remove(), 3200);
-  }
-}
+const regen = l => B.regen(l);
 function moment(n, naam) {
-  const ti = tierIdx(n), t = NIVEAUS[ti];
-  const el = document.createElement('div'); el.className = `drama t${ti}`; el.setAttribute('role', 'dialog'); el.setAttribute('aria-live', 'assertive');
+  const ti = tierIdx(n), t = NIVEAUS_()[ti];
+  const el = document.createElement('div'); const m = M(); el.className = `drama ${meter} t${ti}`; el.setAttribute('role', 'dialog'); el.setAttribute('aria-live', 'assertive');
   el.innerHTML = `<div class="binnen"><div class="groteemoji">${t.e}</div><h2>${esc(t.naam.toUpperCase())}</h2>
     <p class="zin">${esc(naam)}: ${n} op 10. ${esc(kies(t.lijnen))}</p>
-    <p class="zacht">Een beetje theater mag, maar zo doen we het niet. Tijd om te resetten 🧘</p><button class="ja" id="reset">Reset starten</button></div>`;
+    <p class="zacht">${esc(m.zacht)}</p><button class="ja" id="reset">${esc(m.start)}</button></div>`;
   document.body.appendChild(el); regen(t.regen);
   try { if (n >= 7 && navigator.vibrate) navigator.vibrate([120, 60, 120]); } catch (x) {}
   el.querySelector('#reset').onclick = () => {
     el.className = 'drama';
-    const toon = () => { el.querySelector('.opdracht').textContent = kies(HERSTEL); };
-    el.innerHTML = `<div class="binnen"><h2>Even resetten 🧘</h2><div class="adem" aria-hidden="true">in… uit…</div>
-      <p class="zin">Adem rustig mee met de cirkel. Doe dan dit:</p><div class="opdracht"></div>
+    const toon = () => { el.querySelector('.opdracht').textContent = kies(m.opdrachten); };
+    el.innerHTML = `<div class="binnen"><h2>${esc(m.kop)}</h2>${m.adem ? '<div class="adem" aria-hidden="true">in… uit…</div>' : '<div class="groteemoji">📝</div>'}
+      <p class="zin">${esc(m.uitleg)}</p><div class="opdracht"></div>
       <div class="rijknop" style="justify-content:center"><button id="nogeen">Andere opdracht</button><button class="ja" id="klaar">Gedaan ✅</button></div></div>`;
     toon();
     el.querySelector('#nogeen').onclick = toon;
-    el.querySelector('#klaar').onclick = () => { el.remove(); regen(['⭐', '🎉', '✨']); };
+    el.querySelector('#klaar').onclick = () => { el.remove(); regen(m.klaar); };
   };
 }
 
 app.addEventListener('click', e => {
+  const mt = e.target.closest('button[data-meter]');
+  if (mt) { meter = mt.dataset.meter; try { localStorage.setItem('meter', meter); } catch (x) {} return render(); }
   const w = e.target.closest('button[data-wie]');
   if (w) { gekozen = w.dataset.wie; return render(); }
   if (!e.target.closest('button[data-meld]')) return;

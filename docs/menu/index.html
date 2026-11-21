@@ -15,9 +15,11 @@
 .weeknav{display:flex;align-items:center;gap:8px;margin-bottom:8px}.weeknav div{flex:1;text-align:center}
 .dn{display:flex;flex-direction:column;min-width:96px}.dn small{color:var(--soft)}
 .nu{background:#fff7d6;border-radius:12px}
+.soep{border-bottom:2px dashed #d8d2ee}
 .vorm{display:grid;gap:8px;margin-top:10px}
 .gerecht a,.rij a{text-decoration:none}
 .ingr{background:var(--bg);border-radius:16px;padding:10px 12px;margin:0 0 10px}
+.nieuw{background:#fff7d6;border-radius:16px;padding:12px}.nieuw select{margin-top:8px}
 .hv{display:flex;gap:8px}.hv input{flex:2}.hv select{flex:1}
 button[disabled]{opacity:.4;cursor:default}
 #plan{max-width:440px;width:92vw}.planlijst{max-height:50vh;overflow:auto;margin:8px 0}.rij.uit{color:var(--soft)}.rij label{cursor:pointer}
@@ -33,7 +35,7 @@ button[disabled]{opacity:.4;cursor:default}
 const B = Basis, sb = B.sb, esc = B.esc, app = document.getElementById('app');
 const MENU_BEWAREN_WEKEN = 2;   // zoveel weken in het verleden blijft het menu bewaard
 const DAGEN = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag'];
-let tab = 'menu', recepten = [], menu = [], producten = [], categorieen = [], ingr = [], ingrOk = true, bewerk = null, filter = '', open = null;
+let standaardPersonen = 4, tab = 'menu', recepten = [], menu = [], producten = [], categorieen = [], ingr = [], ingrOk = true, bewerk = null, filter = '', open = null;
 const maandagVan = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - (x.getDay() + 6) % 7); return x; };
 const plus = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const kort = d => d.toLocaleDateString('nl-BE', { day: 'numeric', month: 'short' });
@@ -47,7 +49,7 @@ function veilig(l) {
 }
 const lnk = (u, t) => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`;
 
-B.start('🍽️ Menu & recepten', laad, { app: 'menu' });
+B.start('🍽️ Menu & recepten', laad, { app: 'menu', snel: 'boodschappen' });
 window.addEventListener('focus', () => { if (B.sessie && bewerk === null && open === null) laad(); });
 
 async function laadMenu() {
@@ -65,6 +67,8 @@ async function laad() {
     const [rec, prod, cat] = await Promise.all(['recepten', 'producten', 'categorieen'].map(t => sb.from(t).select('*')));
     const f = rec.error || prod.error || cat.error; if (f) throw f;
     recepten = rec.data.sort((a, b) => a.titel.localeCompare(b.titel)); producten = prod.data; categorieen = cat.data.sort((a, b) => a.standaard_volgorde - b.standaard_volgorde);
+    const ins = await sb.from('instellingen').select('waarde').eq('sleutel', 'standaard_personen').maybeSingle();
+    if (!ins.error && ins.data) standaardPersonen = Number(ins.data.waarde) || 4;
     await laadIngr(); await laadMenu();
   } catch (e) { app.innerHTML = `<p class="fout">Laden mislukt: ${esc(e.message)}. Zijn menu.sql en boodschappen.sql uitgevoerd?</p>`; return; }
   render();
@@ -81,28 +85,34 @@ function menuHtml() {
   const metIngr = menu.filter(m => m.recept_id && ingr.some(x => x.recept_id === m.recept_id)).length;
   const nav = `<div class="weeknav"><button data-week="-1" aria-label="Vorige week" ${kanTerug ? '' : 'disabled'}>◀</button><div><b>Week van ${kort(week)} tot ${kort(plus(week, 6))}</b></div><button data-week="1" aria-label="Volgende week">▶</button></div>
     <div class="rijknop" style="justify-content:center;margin:0 0 10px"><button data-week="0">Deze week</button></div>`;
-  const rijen = DAGEN.map((naam, i) => {
-    const d = plus(week, i), m = menu.find(x => x.dag === i) || {}, r = recepten.find(x => x.id === m.recept_id), isNu = B.iso(d) === nu;
+  const rijen = [7, 0, 1, 2, 3, 4, 5, 6].map(i => {
+    const soep = i === 7, naam = soep ? '🍲 Soep' : DAGEN[i];
+    const d = plus(week, soep ? 0 : i), m = menu.find(x => x.dag === i) || {}, r = recepten.find(x => x.id === m.recept_id), isNu = !soep && B.iso(d) === nu;
+    const datum = soep ? 'van de week' : kort(d);
     if (bewerk === i) {
-      return `<div class="rij ${isNu ? 'nu' : ''}" style="display:block"><strong>${naam}</strong> <small class="sub">${kort(d)}</small>
-        <div class="vorm"><input id="mtekst" type="text" maxlength="300" placeholder="Wat eten we?" value="${esc(m.tekst || '')}">
+      return `<div class="rij ${isNu ? 'nu' : ''}" style="display:block"><strong>${naam}</strong> <small class="sub">${datum}</small>
+        <div class="vorm"><input id="mtekst" type="text" maxlength="300" placeholder="${soep ? 'Welke soep?' : 'Wat eten we?'}" value="${esc(m.tekst || '')}">
         <input id="mlink" type="text" inputmode="url" maxlength="1000" placeholder="Link (optioneel)" value="${esc(m.link || '')}">
         <select id="mrecept"><option value="">Of kies uit onze recepten…</option>${recepten.map(x => `<option value="${x.id}" ${x.id === m.recept_id ? 'selected' : ''}>${esc(x.titel)}</option>`).join('')}</select>
+        <label class="sub">👥 Personen <input id="mpers" type="number" inputmode="numeric" min="1" max="30" placeholder="${standaardPersonen} (standaard)" value="${m.personen || ''}" style="width:9rem"></label>
         <div class="rijknop"><button data-annuleer="1">Annuleer</button><button class="ja" data-bewaar="${i}">Bewaar</button></div></div></div>`;
     }
     const delen = [];
     if (m.tekst) delen.push(esc(m.tekst));
     if (r) delen.push(`📖 ${esc(r.titel)}${veilig(r.link) ? ' ' + lnk(veilig(r.link), '🔗') : ''}`);
     if (veilig(m.link)) delen.push(lnk(veilig(m.link), '🔗 link'));
-    return `<div class="rij ${isNu ? 'nu' : ''}"><div class="dn"><b>${naam}</b><small>${kort(d)}</small></div><span class="gerecht">${delen.join('<br>') || '<span class="sub">Nog niets gepland</span>'}</span><button data-bewerk="${i}" aria-label="Bewerk ${naam}">✎</button></div>`;
+    if (m.personen && m.personen !== standaardPersonen) delen.push(`<small class="sub">👥 ${m.personen} personen</small>`);
+    return `<div class="rij ${isNu ? 'nu' : ''} ${soep ? 'soep' : ''}"><div class="dn"><b>${naam}</b><small>${datum}</small></div><span class="gerecht">${delen.join('<br>') || '<span class="sub">Nog niets gepland</span>'}</span><button data-bewerk="${i}" aria-label="Bewerk ${naam}">✎</button></div>`;
   }).join('');
   const weekknop = metIngr ? `<div class="rijknop" style="justify-content:center;margin:0 0 10px"><button class="ja" data-weeklijst="1">🛒 Ingrediënten van deze week op het lijstje</button></div>` : '';
-  return nav + weekknop + `<div class="kaart">${rijen}</div><p class="sub">Menu’s ouder dan ${MENU_BEWAREN_WEKEN} weken worden automatisch gewist.</p>`;
+  const pers = B.isOuder
+    ? `<label>👥 Standaard aantal personen: <input id="stdpers" type="number" inputmode="numeric" min="1" max="30" value="${standaardPersonen}" style="width:5rem"></label>`
+    : `👥 Standaard ${standaardPersonen} personen`;
+  return nav + weekknop + `<div class="kaart">${rijen}</div><p class="sub">${pers}<br>Menu’s ouder dan ${MENU_BEWAREN_WEKEN} weken worden automatisch gewist.</p>`;
 }
 
 function receptenHtml() {
-  return `<datalist id="prodlijst">${producten.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => `<option value="${esc(p.naam)}">`).join('')}</datalist>
-    <div class="kaart"><strong>Recept toevoegen</strong><div class="vorm">
+  return `<div class="kaart"><strong>Recept toevoegen</strong><div class="vorm">
       <input id="rtitel" type="text" maxlength="200" placeholder="Naam van het gerecht" autocomplete="off">
       <input id="rlink" type="text" inputmode="url" maxlength="1000" placeholder="Link naar het recept (optioneel)" autocomplete="off">
       <input id="rnotitie" type="text" maxlength="500" placeholder="Notitie (optioneel, bv. “met de kinderen gemaakt”)" autocomplete="off">
@@ -114,11 +124,11 @@ function paneel(r) {
   const andere = (categorieen.find(c => c.naam === 'Andere') || categorieen[0] || {}).id;
   return `<div class="ingr">
     ${ingrOk ? '' : '<p class="fout">Ingrediënten niet beschikbaar. Is recepten-ingredienten.sql uitgevoerd?</p>'}
+    <label class="sub">👥 Dit recept is voor <input type="number" inputmode="numeric" min="1" max="30" data-rpers="${r.id}" value="${r.personen || 4}" style="width:4.5rem"> personen</label>
     ${lijst.map(x => `<div class="rij"><span>${esc(pnaam(x.product_id))}${x.hoeveelheid ? ` <small class="sub">· ${num(x.hoeveelheid)} ${x.eenheid}</small>` : ''}</span><button data-delingr="${x.id}" aria-label="Verwijder ${esc(pnaam(x.product_id))}">✕</button></div>`).join('') || '<p class="sub">Nog geen ingrediënten.</p>'}
-    <div class="vorm"><input type="text" list="prodlijst" data-iprod="${r.id}" id="iprod-${r.id}" placeholder="Ingrediënt (typ om te zoeken)" autocomplete="off">
+    <div class="vorm"><input type="text" data-iprod="${r.id}" id="iprod-${r.id}" placeholder="Ingrediënt (typ om te zoeken)" autocomplete="off"><div id="isug-${r.id}"></div>
       <div class="hv"><input id="ihv-${r.id}" type="number" inputmode="decimal" min="0" step="any" placeholder="Aantal (optioneel)" aria-label="Aantal"><select id="ieh-${r.id}" aria-label="Eenheid"><option value="st">st</option><option value="g">g</option><option value="ml">ml</option></select></div>
-      <select id="icat-${r.id}" aria-label="Categorie voor een nieuw product">${categorieen.map(c => `<option value="${c.id}" ${c.id === andere ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select>
-      <small class="sub">De categorie telt alleen voor een nieuw product dat nog niet in Boodschappen staat.</small>
+      <div id="icatvak-${r.id}" class="nieuw" hidden>➕ Nieuw product. Opslaan in:<select id="icat-${r.id}" aria-label="Categorie voor een nieuw product">${categorieen.map(c => `<option value="${c.id}" ${c.id === andere ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select></div>
       <button class="ja" data-addingr="${r.id}">Ingrediënt toevoegen</button></div>
     ${lijst.length ? `<div class="rijknop" style="justify-content:flex-start"><button class="ja" data-oplijst="${r.id}">🛒 Op het boodschappenlijstje</button></div>` : ''}</div>`;
 }
@@ -142,6 +152,15 @@ async function voegToe() {
   await laad();
 }
 
+// Aanvullen zoals in Boodschappen: tik op een bestaand product, anders categorie kiezen voor een nieuw
+function ingrSugg(rid) {
+  const q = document.getElementById('iprod-' + rid).value, { treffers, exact } = B.zoekProducten(producten, q);
+  const cat = id => (categorieen.find(c => c.id === id) || {}).naam || '';
+  document.getElementById('isug-' + rid).innerHTML = treffers.length && !exact
+    ? `<div class="sug">${treffers.map(p => `<button data-kiesprod="${p.id}" data-rid="${rid}">${esc(p.naam)} <small>· ${esc(cat(p.categorie_id))}</small></button>`).join('')}</div>` : '';
+  document.getElementById('icatvak-' + rid).hidden = !q.trim() || !!exact;
+  if (exact) document.getElementById('ieh-' + rid).value = exact.eenheid || 'st';
+}
 async function addIngr(rid) {
   const naam = document.getElementById('iprod-' + rid).value.trim(); if (!naam) return;
   const n = parseFloat(String(document.getElementById('ihv-' + rid).value).replace(',', '.')), eenh = document.getElementById('ieh-' + rid).value;
@@ -157,6 +176,13 @@ async function addIngr(rid) {
 }
 
 // Zet ingrediënten op het boodschappenlijstje: eerst een overzicht om per ingrediënt te kiezen, dan opslaan.
+// Ingrediënten van een recept omgerekend naar een aantal personen
+const geschaald = (rid, personen) => {
+  const f = personen / ((recepten.find(x => x.id === rid) || {}).personen || 4);
+  return ingr.filter(x => x.recept_id === rid).map(x => ({ ...x, hoeveelheid: x.hoeveelheid == null ? null : Number(x.hoeveelheid) * f }));
+};
+// Stuks naar boven afronden, gram/ml op een geheel getal
+const rond = (n, u) => n == null ? null : u === 'st' ? Math.ceil(n - 1e-9) : Math.max(1, Math.round(n));
 const hv = (n, u) => n == null ? 'zonder aantal' : `${num(n)} ${u}`;
 function berekenPlan(lijstIngr, cur) {
   const som = new Map(), items = [];
@@ -167,6 +193,7 @@ function berekenPlan(lijstIngr, cur) {
     else items.push({ naam: pnaam(x.product_id), rij: null, tekst: `${hv(h, x.eenheid)} niet opgeteld: andere eenheid binnen deze selectie` });
   }
   for (const [pid, s] of som) {
+    s.hoeveelheid = rond(s.hoeveelheid, s.eenheid);
     const e = cur.find(x => x.product_id === pid), prod = producten.find(p => p.id === pid);
     const basis = { product_id: pid, afgevinkt: false }, it = { naam: pnaam(pid), rij: null, tekst: '' };
     if (!e || e.afgevinkt) { it.rij = { ...basis, hoeveelheid: s.hoeveelheid, eenheid: s.eenheid }; it.tekst = `nieuw: ${hv(s.hoeveelheid, s.eenheid)}`; }
@@ -212,10 +239,16 @@ async function planKlik(e) {
 
 app.addEventListener('input', e => {
   if (e.target.id === 'rzoek') { filter = e.target.value; vulRecepten(); }
-  if (e.target.dataset.iprod) {   // eenheid van een bestaand product alvast invullen
-    const p = producten.find(x => x.naam.toLowerCase() === e.target.value.trim().toLowerCase());
-    if (p) document.getElementById('ieh-' + e.target.dataset.iprod).value = p.eenheid || 'st';
-  }
+  if (e.target.dataset.iprod) ingrSugg(e.target.dataset.iprod);
+});
+app.addEventListener('change', async e => {
+  const t = e.target, n = Math.min(30, parseInt(t.value, 10));
+  if (!(n > 0) || !(t.id === 'stdpers' || t.dataset.rpers)) return;
+  const r = t.id === 'stdpers'
+    ? await sb.from('instellingen').upsert({ sleutel: 'standaard_personen', waarde: n })
+    : await sb.from('recepten').update({ personen: n }).eq('id', t.dataset.rpers);
+  if (r.error) return alert('Opslaan mislukt: ' + r.error.message + '. Is menu-personen-soep.sql uitgevoerd?');
+  if (t.id === 'stdpers') { standaardPersonen = n; render(); } else { const x = recepten.find(y => y.id === t.dataset.rpers); if (x) x.personen = n; }
 });
 app.addEventListener('keydown', e => { if (e.key === 'Enter' && ['rtitel', 'rlink', 'rnotitie'].includes(e.target.id)) { e.preventDefault(); voegToe(); } });
 app.addEventListener('click', async e => {
@@ -233,23 +266,28 @@ app.addEventListener('click', async e => {
   if (d.bewaar !== undefined) {
     const dag = Number(d.bewaar), tekst = document.getElementById('mtekst').value.trim() || null, raw = document.getElementById('mlink').value.trim();
     const recept = document.getElementById('mrecept').value || null, link = raw ? veilig(raw) : null;
+    const pn = parseInt(document.getElementById('mpers').value, 10), personen = pn > 0 && pn !== standaardPersonen ? Math.min(pn, 30) : null;
     if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
     const sleutel = B.iso(week);
     const r = (!tekst && !link && !recept)
       ? await sb.from('menu_dagen').delete().eq('week', sleutel).eq('dag', dag)
-      : await sb.from('menu_dagen').upsert({ week: sleutel, dag, tekst, link, recept_id: recept }, { onConflict: 'week,dag' });
+      : await sb.from('menu_dagen').upsert({ week: sleutel, dag, tekst, link, recept_id: recept, personen }, { onConflict: 'week,dag' });
     if (r.error) return alert('Opslaan mislukt: ' + r.error.message);
     bewerk = null;
     try { await laadMenu(); } catch (x) { return alert('Laden mislukt: ' + x.message); }
     return render();
   }
   if (d.weeklijst) {
-    const lijst = menu.filter(m => m.recept_id).flatMap(m => ingr.filter(x => x.recept_id === m.recept_id));
+    const lijst = menu.filter(m => m.recept_id).flatMap(m => geschaald(m.recept_id, m.personen || standaardPersonen));
     if (lijst.length) toonPlan(lijst, 'Ingrediënten van deze week');
     return;
   }
   if (d.open) { open = open === d.open ? null : d.open; return vulRecepten(); }
   if (d.addingr) return addIngr(d.addingr);
+  if (d.kiesprod) {
+    const p = producten.find(x => x.id === d.kiesprod), i = document.getElementById('iprod-' + d.rid);
+    i.value = p.naam; ingrSugg(d.rid); document.getElementById('ihv-' + d.rid).focus(); return;
+  }
   if (d.delingr) {
     const { error } = await sb.from('recept_ingredienten').delete().eq('id', d.delingr);
     if (error) return alert('Verwijderen mislukt: ' + error.message);
@@ -257,7 +295,7 @@ app.addEventListener('click', async e => {
   }
   if (d.oplijst) {
     const r = recepten.find(x => x.id === d.oplijst);
-    return toonPlan(ingr.filter(x => x.recept_id === d.oplijst), r.titel);
+    return toonPlan(geschaald(d.oplijst, standaardPersonen), `${r.titel} (${standaardPersonen} personen)`);
   }
   if (d.addrec) return voegToe();
   if (d.delrec) {

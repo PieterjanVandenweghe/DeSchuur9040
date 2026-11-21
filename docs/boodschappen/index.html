@@ -12,7 +12,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../gedeeld/stijl.css">
 <style>
-.sug{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.sug button{background:#efeaff}
 .nieuw{background:#fff7d6;border-radius:16px;padding:12px;margin:10px 0}
 .nieuw select{margin:8px 0}
 .orde .rij button{padding:6px 12px}
@@ -34,7 +33,7 @@ const STAP = { st: 1, g: 50, ml: 50 };   // hoeveel + en − per tik verandert, 
 let cats = [], prods = [], lijst = [], winkels = [], volg = [], tab = 'lijst', beheerWinkel = null, kanaal = null, nieuweCat = null;
 let winkel = ''; try { winkel = localStorage.getItem('winkel') || ''; } catch (e) {}
 
-B.start('🛒 Boodschappen', () => { laad(); }, { app: 'boodschappen' });
+B.start('🛒 Boodschappen', () => { laad(); }, { app: 'boodschappen', snel: 'menu' });
 
 async function laad() {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Log eerst in (knop rechtsboven).</p>'; return; }
@@ -93,11 +92,10 @@ function vul() {
 function zoekwaarde() { const z = document.getElementById('zoek'); return z ? z.value.trim() : ''; }
 function vulSugg() {
   const s = document.getElementById('sugg'); if (!s) return;
-  const q = zoekwaarde(), ql = q.toLowerCase();
+  const q = zoekwaarde();
   if (!q) { s.innerHTML = ''; return; }
   const op = new Set(lijst.map(l => l.product_id)), cb = catById();
-  const m = prods.filter(p => p.naam.toLowerCase().includes(ql)).sort((a, b) => a.naam.length - b.naam.length).slice(0, 8);
-  const exact = prods.some(p => p.naam.toLowerCase() === ql);
+  const { treffers: m, exact } = B.zoekProducten(prods, q);
   s.innerHTML = `<div class="sug">${m.map(p => `<button data-add="${p.id}">${op.has(p.id) ? '✓ ' : ''}${esc(p.naam)} <small>· ${esc((cb[p.categorie_id] || {}).naam || '')}</small></button>`).join('')}</div>`
     + (exact ? '' : `<div class="nieuw">➕ “${esc(q)}” is nieuw. Opslaan in:<select id="nwcat">${cats.map(c => `<option value="${c.id}" ${c.id === nieuweCat ? 'selected' : ''}>${esc(c.naam)}</option>`).join('')}</select><button class="ja" data-nieuw="1">Toevoegen</button></div>`);
 }

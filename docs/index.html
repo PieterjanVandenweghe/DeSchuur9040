@@ -20,16 +20,21 @@
 <script src="gedeeld/basis.js"></script>
 <script>
 const B = Basis, esc = B.esc, app = document.getElementById('app');
-const APPS = [['opruim', '🧹', 'Opruimstreak', '#ff6b35', 'opruim/'], ['boodschappen', '🛒', 'Boodschappen', '#1fb58f', 'boodschappen/'],
-              ['toilet', '🚽', 'Toilet-teller', '#7b5cff', 'toilet/'], ['cadeautjes', '🎁', 'Cadeautjes', '#e8456b', 'cadeautjes/'],
-              ['drama', '🎭', 'Dramameter', '#ff9f1c', 'drama/'],
-              ['menu', '🍽️', 'Menu & recepten', '#2ec4b6', 'menu/']];
-let verberg = [], open = false;
+const APPS = B.APPS;
+let verberg = [], open = false, volgorde = [], schikken = false;
+// Eigen volgorde: bekende apps eerst in opgeslagen volgorde, nieuwe apps achteraan
+const gesorteerd = () => [...APPS].sort((a, b) => { const i = x => { const n = volgorde.indexOf(x[0]); return n < 0 ? 999 + APPS.indexOf(x) : n; }; return i(a) - i(b); });
 
 async function toon() {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Log in met je naam en pincode (knop rechtsboven).</p>'; return; }
-  const tegels = APPS.filter(a => !B.verborgen.has(a[0])).map(a => `<a class="tegel" style="--c:${a[3]}" href="${a[4]}"><b>${a[1]}</b>${a[2]}</a>`).join('')
+  const v = await B.sb.from('app_volgorde').select('apps').eq('user_id', B.sessie.user.id).maybeSingle();
+  volgorde = (!v.error && v.data) ? v.data.apps : [];
+  const zicht = gesorteerd().filter(a => !B.verborgen.has(a[0]));
+  const tegels = zicht.map((a, i) => schikken
+      ? `<div class="tegel schik" style="--c:${a[3]}"><b>${a[1]}</b>${a[2]}<div class="pijlen"><button data-schuif="${a[0]}" data-r="-1" ${i ? '' : 'disabled'} aria-label="${a[2]} naar voren">◀</button><button data-schuif="${a[0]}" data-r="1" ${i < zicht.length - 1 ? '' : 'disabled'} aria-label="${a[2]} naar achteren">▶</button></div></div>`
+      : `<a class="tegel" style="--c:${a[3]}" href="${a[4]}"><b>${a[1]}</b>${a[2]}</a>`).join('')
     || '<p class="sub">Er zijn geen apps voor jou ingeschakeld.</p>';
+  const schikknop = zicht.length > 1 ? `<div class="rijknop" style="justify-content:center"><button data-schikken="1" class="${schikken ? 'ja' : ''}">${schikken ? 'Klaar ✅' : '↕️ Volgorde aanpassen'}</button></div>` : '';
   let inst = '';
   if (B.isOuder) {
     const r = await B.sb.from('app_verbergen').select('*'); verberg = r.data || [];
@@ -40,9 +45,22 @@ async function toon() {
       ${pers.map(p => `<tr><td>${esc(p.naam)}</td>${APPS.map(a => `<td><input type="checkbox" data-u="${p.uid}" data-a="${a[0]}" aria-label="${esc(p.naam)}: ${a[2]}" ${verberg.some(v => v.user_id === p.uid && v.app === a[0]) ? '' : 'checked'}></td>`).join('')}</tr>`).join('')}
       </tbody></table></div></details>`;
   }
-  app.innerHTML = `<div class="tegels">${tegels}</div>${inst}`;
+  app.innerHTML = `<div class="tegels">${tegels}</div>${schikknop}${inst}`;
 }
 app.addEventListener('toggle', e => { if (e.target.id === 'inst') open = e.target.open; }, true);
+app.addEventListener('click', async e => {
+  if (e.target.closest('button[data-schikken]')) { schikken = !schikken; return toon(); }
+  const b = e.target.closest('button[data-schuif]'); if (!b) return;
+  // Schuif binnen de zichtbare apps; verborgen apps behouden hun plaats in de lijst
+  const lijst = gesorteerd().map(a => a[0]), zicht = lijst.filter(k => !B.verborgen.has(k));
+  const i = zicht.indexOf(b.dataset.schuif), j = i + Number(b.dataset.r);
+  if (j < 0 || j >= zicht.length) return;
+  const x = lijst.indexOf(zicht[i]), y = lijst.indexOf(zicht[j]);
+  [lijst[x], lijst[y]] = [lijst[y], lijst[x]];
+  const { error } = await B.sb.from('app_volgorde').upsert({ user_id: B.sessie.user.id, apps: lijst });
+  if (error) return alert('Opslaan mislukt: ' + error.message + '. Is app-volgorde.sql uitgevoerd?');
+  toon();
+});
 app.addEventListener('change', async e => {
   const t = e.target; if (!t.dataset.u) return;
   const { u, a } = t.dataset;
