@@ -25,10 +25,12 @@ let verberg = [], open = false, volgorde = [], schikken = false;
 // Eigen volgorde: bekende apps eerst in opgeslagen volgorde, nieuwe apps achteraan
 const gesorteerd = () => [...APPS].sort((a, b) => { const i = x => { const n = volgorde.indexOf(x[0]); return n < 0 ? 999 + APPS.indexOf(x) : n; }; return i(a) - i(b); });
 
-async function toon() {
+async function toon(lokaal = false) {
   if (!B.sessie) { app.innerHTML = '<p class="fout">Log in met je naam en pincode (knop rechtsboven).</p>'; return; }
-  const v = await B.sb.from('app_volgorde').select('apps').eq('user_id', B.sessie.user.id).maybeSingle();
-  volgorde = (!v.error && v.data) ? v.data.apps : [];
+  if (!lokaal) {
+    const v = await B.sb.from('app_volgorde').select('apps').eq('user_id', B.sessie.user.id).maybeSingle();
+    volgorde = (!v.error && v.data) ? v.data.apps : [];
+  }
   const zicht = gesorteerd().filter(a => !B.verborgen.has(a[0]));
   const tegels = zicht.map((a, i) => schikken
       ? `<div class="tegel schik" style="--c:${a[3]}"><b>${a[1]}</b>${a[2]}<div class="pijlen"><button data-schuif="${a[0]}" data-r="-1" ${i ? '' : 'disabled'} aria-label="${a[2]} naar voren">◀</button><button data-schuif="${a[0]}" data-r="1" ${i < zicht.length - 1 ? '' : 'disabled'} aria-label="${a[2]} naar achteren">▶</button></div></div>`
@@ -57,9 +59,9 @@ app.addEventListener('click', async e => {
   if (j < 0 || j >= zicht.length) return;
   const x = lijst.indexOf(zicht[i]), y = lijst.indexOf(zicht[j]);
   [lijst[x], lijst[y]] = [lijst[y], lijst[x]];
+  const vorige = volgorde; volgorde = lijst; toon(true);   // meteen tonen, zodat een snelle tweede klik verder rekent
   const { error } = await B.sb.from('app_volgorde').upsert({ user_id: B.sessie.user.id, apps: lijst });
-  if (error) return alert('Opslaan mislukt: ' + error.message + '. Is app-volgorde.sql uitgevoerd?');
-  toon();
+  if (error) { volgorde = vorige; toon(true); return alert('Opslaan mislukt: ' + error.message + '. Is app-volgorde.sql uitgevoerd?'); }
 });
 app.addEventListener('change', async e => {
   const t = e.target; if (!t.dataset.u) return;

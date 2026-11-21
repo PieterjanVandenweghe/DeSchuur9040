@@ -7,6 +7,8 @@ create table if not exists instellingen (
   waarde jsonb not null
 );
 alter table instellingen enable row level security;
+drop policy if exists "instellingen lezen" on instellingen;
+drop policy if exists "instellingen beheren" on instellingen;
 create policy "instellingen lezen" on instellingen for select to authenticated using (true);
 create policy "instellingen beheren" on instellingen for all to authenticated using (is_ouder()) with check (is_ouder());
 insert into instellingen (sleutel, waarde) values ('standaard_personen', '4') on conflict do nothing;

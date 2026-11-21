@@ -246,7 +246,8 @@ app.addEventListener('change', async e => {
   if (!(n > 0) || !(t.id === 'stdpers' || t.dataset.rpers)) return;
   const r = t.id === 'stdpers'
     ? await sb.from('instellingen').upsert({ sleutel: 'standaard_personen', waarde: n })
-    : await sb.from('recepten').update({ personen: n }).eq('id', t.dataset.rpers);
+    : await sb.from('recepten').update({ personen: n }).eq('id', t.dataset.rpers).select('id');
+  if (!r.error && t.dataset.rpers && !r.data.length) r.error = { message: 'je mag dit recept niet wijzigen (alleen een ouder of wie het toevoegde)' };
   if (r.error) return alert('Opslaan mislukt: ' + r.error.message + '. Is menu-personen-soep.sql uitgevoerd?');
   if (t.id === 'stdpers') { standaardPersonen = n; render(); } else { const x = recepten.find(y => y.id === t.dataset.rpers); if (x) x.personen = n; }
 });
