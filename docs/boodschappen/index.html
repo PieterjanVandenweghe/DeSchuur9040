@@ -168,7 +168,7 @@ app.addEventListener('click', async e => {
   if (d.nieuw) return nieuwProduct();
   if (d.del) { await schrijf(sb.from('lijst').delete().eq('id', d.del)); return; }
   if (d.wis) { await schrijf(sb.from('lijst').delete().eq('afgevinkt', true)); return; }
-  if (d.addwinkel) { const n = document.getElementById('nwwinkel').value.trim(); if (n) await schrijf(sb.from('winkels').insert({ naam: n })); return; }
+  if (d.addwinkel) { const n = document.getElementById('nwwinkel').value.trim(); if (n) await schrijf(sb.from('winkels').insert({ naam: B.hoofdletter(n) })); return; }
   if (d.delwinkel) { if (confirm('Winkel verwijderen?')) await schrijf(sb.from('winkels').delete().eq('id', d.delwinkel)); return; }
   if (d.orde) { beheerWinkel = d.orde; return vul(); }
   if (d.klaar) { beheerWinkel = null; return vul(); }
@@ -176,7 +176,7 @@ app.addEventListener('click', async e => {
   if (d.omlaag) return beweeg(d.omlaag, 1);
   if (d.addprod) { const i = app.querySelector(`input[data-pinput="${d.addprod}"]`), n = i.value.trim(); if (n) await schrijf(sb.from('producten').insert({ naam: B.hoofdletter(n), categorie_id: d.addprod })); return; }
   if (d.delprod) { if (confirm('Product verwijderen uit de catalogus?')) await schrijf(sb.from('producten').delete().eq('id', d.delprod)); return; }
-  if (d.addcat) { const n = document.getElementById('nwcatnaam').value.trim(); if (n) await schrijf(sb.from('categorieen').insert({ naam: n, standaard_volgorde: Math.max(0, ...cats.map(c => c.standaard_volgorde)) + 1 })); return; }
+  if (d.addcat) { const n = document.getElementById('nwcatnaam').value.trim(); if (n) await schrijf(sb.from('categorieen').insert({ naam: B.hoofdletter(n), standaard_volgorde: Math.max(0, ...cats.map(c => c.standaard_volgorde)) + 1 })); return; }
 });
 app.addEventListener('input', e => {
   if (e.target.id !== 'zoek') return;

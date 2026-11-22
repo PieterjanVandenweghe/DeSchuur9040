@@ -154,7 +154,7 @@ async function voegToe() {
   if (!titel) return;
   const link = raw ? veilig(raw) : null;
   if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
-  const { error } = await sb.from('recepten').insert({ titel, link, notitie: notitie || null });
+  const { error } = await sb.from('recepten').insert({ titel: B.hoofdletter(titel), link, notitie: notitie || null });
   if (error) return alert('Opslaan mislukt: ' + error.message);
   await laad();
 }
@@ -253,7 +253,7 @@ async function importLink() {
     if (data.fout) throw new Error(data.fout);
     const titel = document.getElementById('rtitel').value.trim() || data.titel || 'Nieuw recept';
     const notitie = document.getElementById('rnotitie').value.trim() || null;
-    const n = await sb.from('recepten').insert({ titel: titel.slice(0, 200), link, notitie, personen: Ingr.personen(data.personen) || 4 }).select().single();
+    const n = await sb.from('recepten').insert({ titel: B.hoofdletter(titel).slice(0, 200), link, notitie, personen: Ingr.personen(data.personen) || 4 }).select().single();
     if (n.error) throw n.error;
     recepten.push(n.data); recepten.sort((a, b) => a.titel.localeCompare(b.titel));
     ['rtitel', 'rlink', 'rnotitie'].forEach(id => { document.getElementById(id).value = ''; });
@@ -354,7 +354,7 @@ app.addEventListener('click', async e => {
   if (d.bewerk !== undefined) { bewerk = Number(d.bewerk); return render(); }
   if (d.annuleer) { bewerk = null; return render(); }
   if (d.bewaar !== undefined) {
-    const dag = Number(d.bewaar), tekst = document.getElementById('mtekst').value.trim() || null, raw = document.getElementById('mlink').value.trim();
+    const dag = Number(d.bewaar), tekst = B.hoofdletter(document.getElementById('mtekst').value) || null, raw = document.getElementById('mlink').value.trim();
     const recept = document.getElementById('mrecept').value || null, link = raw ? veilig(raw) : null;
     const pn = parseInt(document.getElementById('mpers').value, 10), personen = pn > 0 && pn !== standaardPersonen ? Math.min(pn, 30) : null;
     if (raw && !link) return alert('Dat lijkt geen geldige link (http of https).');
