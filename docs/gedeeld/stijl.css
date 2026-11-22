@@ -35,3 +35,4 @@ a.snel{display:grid;place-items:center;width:44px;height:44px;border-radius:14px
 .tegel.schik{background:var(--card);border-radius:28px;padding:20px;text-align:center;border:3px dashed var(--c)}.tegel.schik b{display:block;font-size:2.4rem;margin-bottom:6px}
 .pijlen{display:flex;gap:8px;justify-content:center;margin-top:10px}.pijlen button{min-width:56px}.pijlen button:disabled{opacity:.3;cursor:default}
 .sug{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.sug button{background:#efeaff}
+.foto{width:44px;height:44px;object-fit:contain;border-radius:8px;background:#fff;flex:none}

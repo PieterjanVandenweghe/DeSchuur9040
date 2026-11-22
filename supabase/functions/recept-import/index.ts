@@ -1,5 +1,7 @@
-// Supabase Edge Function 'recept-import': haalt een receptpagina op en leest het schema.org-receptblok
-// (JSON-LD) uit: titel, aantal personen en de ingrediëntenregels. Geen AI; de app koppelt zelf aan producten.
+// Supabase Edge Function 'recept-import': haalt een publieke pagina op en
+// - leest het schema.org-receptblok (JSON-LD) uit: titel, aantal personen en de ingrediëntenregels;
+// - of, met { soort: 'foto' }, geeft alleen de productfoto (og:image) terug voor Cadeautjes.
+// Geen AI; de app koppelt zelf aan producten.
 // Alleen voor ingelogde gebruikers (JWT-controle staat standaard aan bij het deployen).
 
 const CORS = {
@@ -34,13 +36,36 @@ const ontsnap = (s: string) => s
   .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
   .replace(/\s+/g, ' ').trim();
 
-// Zoek een object met @type Recipe, ook in arrays en @graph
-function vindRecept(x: unknown): Record<string, unknown> | null {
+// Zoek een object met een bepaald @type (Recipe, Product), ook in arrays en @graph
+function vindType(x: unknown, type: string): Record<string, unknown> | null {
   if (!x || typeof x !== 'object') return null;
-  if (Array.isArray(x)) { for (const y of x) { const r = vindRecept(y); if (r) return r; } return null; }
+  if (Array.isArray(x)) { for (const y of x) { const r = vindType(y, type); if (r) return r; } return null; }
   const o = x as Record<string, unknown>, t = o['@type'];
-  if (t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'))) return o;
-  return vindRecept(o['@graph']) || vindRecept(o['mainEntity']);
+  if (t === type || (Array.isArray(t) && t.includes(type))) return o;
+  return vindType(o['@graph'], type) || vindType(o['mainEntity'], type);
+}
+const jsonLd = (html: string) => [...html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)]
+  .map((m) => { try { return JSON.parse(m[1].trim()); } catch { return null; } }).filter(Boolean);
+
+// Hoofdfoto van een (product)pagina: og:image of twitter:image, als absolute http(s)-link
+function fotoVan(html: string, basis: URL): string | null {
+  for (const tag of html.match(/<meta\s[^>]*>/gi) ?? []) {
+    const eig = (tag.match(/\s(?:property|name)\s*=\s*["']([^"']+)["']/i) ?? [])[1]?.toLowerCase();
+    if (!eig || !['og:image', 'og:image:secure_url', 'twitter:image', 'twitter:image:src'].includes(eig)) continue;
+    const inhoud = (tag.match(/\scontent\s*=\s*["']([^"']+)["']/i) ?? [])[1];
+    if (!inhoud) continue;
+    try {
+      const u = new URL(ontsnap(inhoud), basis);
+      if (/^https?:$/.test(u.protocol) && u.href.length <= 2000) return u.href;
+    } catch { /* ongeldige link overslaan */ }
+  }
+  // Geen og:image? Dan de foto uit het schema.org-productblok (string, lijst of ImageObject)
+  let img: unknown = vindType(jsonLd(html), 'Product')?.image;
+  for (let i = 0; i < 3 && img && typeof img === 'object'; i++) img = Array.isArray(img) ? img[0] : (img as Record<string, unknown>).url;
+  if (typeof img === 'string') {
+    try { const u = new URL(img, basis); if (/^https?:$/.test(u.protocol) && u.href.length <= 2000) return u.href; } catch { /* overslaan */ }
+  }
+  return null;
 }
 
 async function haalOp(url: URL): Promise<string> {
@@ -72,7 +97,7 @@ async function haalOp(url: URL): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return antwoord({ fout: 'Alleen POST.' }, 405);
-  let body: { url?: string };
+  let body: { url?: string; soort?: string };
   try { body = await req.json(); } catch { return antwoord({ fout: 'Ongeldige vraag.' }, 400); }
   const url = veiligeUrl(String(body.url || ''));
   if (!url) return antwoord({ fout: 'Dat is geen geldige, publieke link.' }, 400);
@@ -80,11 +105,9 @@ Deno.serve(async (req) => {
   let html: string;
   try { html = await haalOp(url); } catch (e) { return antwoord({ fout: 'Ophalen mislukt: ' + (e as Error).message }, 502); }
 
-  let recept: Record<string, unknown> | null = null;
-  for (const m of html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
-    try { recept = vindRecept(JSON.parse(m[1].trim())); } catch { /* kapotte JSON-LD overslaan */ }
-    if (recept) break;
-  }
+  if (body.soort === 'foto') return antwoord({ foto: fotoVan(html, url) });
+
+  const recept = vindType(jsonLd(html), 'Recipe');
   if (!recept) return antwoord({ fout: 'Op deze pagina staat geen herkenbaar recept. Plak de ingrediënten dan zelf.' }, 422);
 
   const lijst = recept.recipeIngredient ?? recept.ingredients;

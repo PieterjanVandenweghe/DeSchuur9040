@@ -33,6 +33,7 @@ const prijsTekst = (v, t) => {
   const s = x != null && y != null ? (x === y ? '± ' + euro(x) : euro(x) + '–' + euro(y).slice(1)) : y != null ? 'tot ' + euro(y) : x != null ? 'vanaf ' + euro(x) : '';
   return s ? ` <small class="sub">· ${esc(s)}</small>` : '';
 };
+const foto = u => { const l = veilig(u); return l ? `<img class="foto" src="${esc(l)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">` : ''; };
 const veilig = l => { if (!l) return null; try { const u = new URL(l); return /^https?:$/.test(u.protocol) ? u.href : null; } catch (e) { return null; } };
 
 async function laad() {
@@ -48,7 +49,7 @@ function render() {
   const rij = i => {
     const l = veilig(i.link), van = i.door_naam, mijn = van && naam && van.toLowerCase() === naam.trim().toLowerCase();
     const status = van ? `<span class="claim">🎁 ${esc(van)}</span>${mijn ? ` <button data-unclaim="${i.id}">Toch niet</button>` : ''}` : `<button class="ja" data-claim="${i.id}">Ik koop dit</button>`;
-    return `<div class="rij"><span>${esc(i.titel)}${prijsTekst(i.prijs_van, i.prijs_tot)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">🔗</a>` : ''}</span>${status}</div>`;
+    return `<div class="rij">${foto(i.foto_url)}<span>${esc(i.titel)}${prijsTekst(i.prijs_van, i.prijs_tot)} ${l ? `<a href="${esc(l)}" target="_blank" rel="noopener noreferrer">🔗</a>` : ''}</span>${status}</div>`;
   };
   let rijen;
   if (gever) {   // per gezinslid groeperen (de lijst komt al gesorteerd op naam)
