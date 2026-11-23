@@ -94,7 +94,10 @@ function velden(p, w = {}) {
   return `<label for="${p}voor">Voor wie?</label><select id="${p}voor">${personen.map(x => `<option value="${x.uid}" ${x.uid === (w.voor_user || voorWie) ? 'selected' : ''}>${esc(x.emoji)} ${esc(x.naam)}${x.uid === me ? ' (ik)' : ''}</option>`).join('')}</select>
       <input id="${p}titel" type="text" maxlength="200" placeholder="Wat is het cadeautje?" autocomplete="off" value="${esc(w.titel || '')}">
       <input id="${p}link" type="text" inputmode="url" maxlength="1000" placeholder="Link (optioneel)" autocomplete="off" value="${esc(w.link || '')}">
-      <div style="display:flex;gap:8px"><input id="${p}pvan" type="number" inputmode="decimal" min="0" step="any" placeholder="Prijs vanaf € (optioneel)" aria-label="Prijs vanaf" value="${w.prijs_van ?? ''}"><input id="${p}ptot" type="number" inputmode="decimal" min="0" step="any" placeholder="tot € (optioneel)" aria-label="Prijs tot" value="${w.prijs_tot ?? ''}"></div>`;
+      <div style="display:flex;gap:8px"><input id="${p}pvan" type="number" inputmode="decimal" min="0" step="any" placeholder="Prijs vanaf € (optioneel)" aria-label="Prijs vanaf" value="${w.prijs_van ?? ''}"><input id="${p}ptot" type="number" inputmode="decimal" min="0" step="any" placeholder="tot € (optioneel)" aria-label="Prijs tot" value="${w.prijs_tot ?? ''}"></div>
+      <details ${w.foto_url ? 'open' : ''}><summary class="sub">🖼️ Foto zelf kiezen (als ze niet vanzelf verschijnt)</summary>
+        <input id="${p}foto" type="text" inputmode="url" maxlength="2000" placeholder="Link naar de foto" autocomplete="off" value="${esc(w.foto_url || '')}">
+        <small class="sub">Op de productpagina: houd de foto ingedrukt (gsm) of klik er met rechts op (computer) en kies “Afbeeldingsadres kopiëren”. Sommige winkels, zoals bol.com, laten het automatisch ophalen niet toe.</small></details>`;
 }
 // Leest en controleert het formulier; geeft null (met melding) als iets niet klopt
 function leesVelden(p) {
@@ -105,7 +108,9 @@ function leesVelden(p) {
   const num = id => { const v = parseFloat(String(document.getElementById(p + id).value).replace(',', '.')); return v >= 0 ? v : null; };
   const prijs_van = num('pvan'), prijs_tot = num('ptot');
   if (prijs_van !== null && prijs_tot !== null && prijs_tot < prijs_van) { alert('De hoogste prijs moet minstens gelijk zijn aan de laagste.'); return null; }
-  return { voor_user: document.getElementById(p + 'voor').value, titel, link, prijs_van, prijs_tot };
+  const fraw = document.getElementById(p + 'foto').value.trim(), foto_url = fraw ? veiligeLink(fraw) : null;
+  if (fraw && !foto_url) { alert('De link naar de foto moet met http of https beginnen.'); return null; }
+  return { voor_user: document.getElementById(p + 'voor').value, titel, link, prijs_van, prijs_tot, foto_url };
 }
 
 function render() {
@@ -170,7 +175,7 @@ async function toevoegen() {
   const { data, error } = await sb.from('cadeau_items').insert(v).select().single();
   if (error) return alert('Mislukt: ' + error.message);
   if (delen) { const r = await sb.from('cadeau_ouders').upsert({ item_id: data.id, gedeeld: true }, { onConflict: 'item_id' }); if (r.error) alert('Delen instellen mislukt: ' + r.error.message); }
-  if (data.link) haalFoto(data.id, data.link);
+  if (data.link && !data.foto_url) haalFoto(data.id, data.link);   // zelf een foto gekozen: niet automatisch zoeken
   const mg = document.getElementById('metgever');
   if (mg && mg.value && mg.value !== '+' && voorWie !== me) await zetGever(data.id, mg.value);
   gekozen = voorWie; await laad();
@@ -185,8 +190,9 @@ app.addEventListener('click', async e => {
     const v = leesVelden('b'); if (!v) return;
     const oud = items.find(x => x.id === d.bewaar);
     if (oud && v.voor_user !== oud.voor_user && !confirm(`Dit cadeautje verhuist naar het lijstje van ${naamVan(v.voor_user)}. Wie het al koopt, blijft het kopen. Doorgaan?`)) return;
-    if (!v.link) v.foto_url = null; else if (oud && v.link !== oud.link) v.foto_url = null;
-    const zoekFoto = v.link && (!oud || v.link !== oud.link || !oud.foto_url);
+    // Het fotoveld telt. Andere link maar dezelfde (oude) foto: die hoorde bij de vorige link, dus opnieuw zoeken.
+    if (oud && v.link !== oud.link && v.foto_url === oud.foto_url) v.foto_url = null;
+    const zoekFoto = v.link && !v.foto_url;
     if (await doe(sb.from('cadeau_items').update(v).eq('id', d.bewaar))) { bewerk = null; gekozen = v.voor_user; render(); if (zoekFoto) haalFoto(d.bewaar, v.link); }
     return;
   }
