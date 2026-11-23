@@ -2,7 +2,8 @@
 // - leest het schema.org-receptblok (JSON-LD) uit: titel, aantal personen en de ingrediëntenregels;
 // - of, met { soort: 'foto' }, geeft alleen de productfoto (og:image) terug voor Cadeautjes.
 // Geen AI; de app koppelt zelf aan producten.
-// Alleen voor ingelogde gebruikers (JWT-controle staat standaard aan bij het deployen).
+// Alleen voor ingelogde gezinsleden: de functie controleert zelf het token én is_gezin() (gezin-beveiliging.sql).
+// (De standaard JWT-controle van Supabase laat ook de publieke anon key door; die volstaat dus niet.)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -94,9 +95,24 @@ async function haalOp(url: URL): Promise<string> {
   throw new Error('Te veel doorverwijzingen.');
 }
 
+// Is de vraag van een ingelogd gezinslid? Vraagt het aan de database met het token van de gebruiker zelf.
+async function isGezinslid(req: Request): Promise<boolean> {
+  const auth = req.headers.get('authorization') ?? '';
+  const basis = Deno.env.get('SUPABASE_URL'), sleutel = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!basis || !sleutel || !/^Bearer\s+\S+$/i.test(auth)) return false;
+  try {
+    const r = await fetch(`${basis}/rest/v1/rpc/is_gezin`, {
+      method: 'POST', headers: { apikey: sleutel, Authorization: auth, 'Content-Type': 'application/json' }, body: '{}',
+      signal: AbortSignal.timeout(5_000),
+    });
+    return r.ok && (await r.json()) === true;   // anon key of vreemd account: false of fout
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return antwoord({ fout: 'Alleen POST.' }, 405);
+  if (!(await isGezinslid(req))) return antwoord({ fout: 'Alleen voor ingelogde gezinsleden.' }, 401);
   let body: { url?: string; soort?: string };
   try { body = await req.json(); } catch { return antwoord({ fout: 'Ongeldige vraag.' }, 400); }
   const url = veiligeUrl(String(body.url || ''));

@@ -14,9 +14,10 @@ Eén site met drie modules: **Opruimstreak** (streak + jokers + schermtijd), **B
 ### 1. Supabase
 1. Maak op supabase.com een gratis project.
 2. Voer in de **SQL Editor** in deze volgorde uit, elk bestand één keer:
-   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql` > `uitbreidingen.sql` > `cadeautjes.sql` (en `cadeautjes-prijs.sql` als je cadeautjes.sql al eerder uitvoerde) > `cadeautjes-ouders.sql` > `uitbreidingen2.sql` > `drama.sql` > `menu.sql` > `recepten-ingredienten.sql` > `eenheid-ml.sql`
+   `schema.sql` > `kindlogin.sql` > `pincode.sql` > `privacy.sql` > `boodschappen.sql` > `toilet.sql` > `uitbreidingen.sql` > `cadeautjes.sql` (en `cadeautjes-prijs.sql` als je cadeautjes.sql al eerder uitvoerde) > `cadeautjes-ouders.sql` > `uitbreidingen2.sql` > `drama.sql` > `menu.sql` > `recepten-ingredienten.sql` > `eenheid-ml.sql` > `toilet-onbeantwoord.sql` > `vakantie.sql` > `app-volgorde.sql` > `menu-personen-soep.sql` > `recepten-wijzigen.sql` > `cadeautjes-gevers.sql` > `cadeautjes-foto.sql` > **`gezin-beveiliging.sql` (altijd als laatste, en opnieuw na elk nieuw script)**
+   Optioneel: `testkind.sql` (een testkind dat alleen jij ziet), `hoofdletters.sql` en `producten-hoofdletter.sql` (bestaande namen met hoofdletter).
    (`schema.sql` bevat voorbeeldnamen; pas de echte namen en emoji's later aan in **Table Editor > kinderen**.)
-3. **Authentication > Sign In / Providers > Email**: zet "Allow new users to sign up" **uit**.
+3. **Authentication > Sign In / Providers > Email**: zet "Allow new users to sign up" **uit**. Controleer dit na elke wijziging aan de instellingen: staat het aan, dan kan iedereen met de (publieke) projectlink een account maken.
 4. Maak voor iedere ouder en ieder kind een account via **Authentication > Users > Add user > Create new user**:
    - e-mail: `<inlognaam>@gezin.example.com` (kleine letters, geen spaties of accenten; het domein moet gelijk zijn aan `LOGIN_DOMEIN` in `docs/config.js`)
    - wachtwoord: de pincode (ouders liefst 8 cijfers, kinderen minstens 6)
@@ -58,6 +59,8 @@ De site staat dan op `https://<gebruiker>.github.io/<repo>/`. Zet hem op het sta
 - **Pincodes zijn zwakker dan wachtwoorden.** Supabase beperkt het aantal pogingen, maar neem voor ouders liefst 8 cijfers. Ook `LOGIN_DOMEIN` (het patroon van de inlogadressen) is zichtbaar.
 - **Deellinks voor cadeautjes** zijn de enige openbare toegang: wie de lange geheime link heeft, ziet één lijstje en kan alleen iets aanduiden. Trek een link in via de pagina Cadeautjes (ouders) als hij verkeerd terechtkomt.
 - **Aanmelden is uitgezet**, zodat niemand zelf een account kan maken. Nieuwe gebruikers maak je alleen in het dashboard aan.
+- **Tweede slot: alleen gezinsleden.** `gezin-beveiliging.sql` laat alleen accounts toe die als ouder (tabel `ouders`) of kind (`kinderen.user_id`) gekoppeld zijn. Een los account, bv. als aanmelden toch ooit aan staat, ziet en wijzigt dan niets. Voer het script opnieuw uit na elk nieuw SQL-bestand; het controleblok onderaan hoort leeg te zijn.
+- **Edge Function `recept-import`** (recepten importeren en fotootjes van cadeautjes): controleert zelf dat de vraag van een ingelogd gezinslid komt, haalt alleen publieke adressen op en stopt na 10 seconden of 3 MB. Na een wijziging aan `supabase/functions/recept-import/index.ts` zet je ze opnieuw online via **Edge Functions** in het dashboard.
 
 ## Beheer
 - **Nieuwe ouder**: account maken (stap 4) en de `insert into ouders`-regel uit stap 5 uitvoeren. Een ouder verwijderen: rij uit `ouders` wissen en eventueel de gebruiker.
